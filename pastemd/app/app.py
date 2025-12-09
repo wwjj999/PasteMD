@@ -3,6 +3,7 @@
 import sys
 import threading
 import queue
+import tkinter as tk
 
 try:
     import ctypes
@@ -110,6 +111,15 @@ def main() -> None:
         ui_queue: queue.Queue = queue.Queue()
         app_state.ui_queue = ui_queue
         
+        # 初始化退出事件
+        import threading
+        app_state.quit_event = threading.Event()
+        
+        # 初始化全局 Tk 实例 (解决 Tcl_AsyncDelete 问题)
+        root = tk.Tk()
+        root.withdraw()  # 隐藏主窗口
+        app_state.root = root
+
         # 启动热键监听
         hotkey_runner = container.get_hotkey_runner()
         hotkey_runner.start()
@@ -128,19 +138,53 @@ def main() -> None:
         tray_runner = container.get_tray_runner()
         threading.Thread(target=tray_runner.run, daemon=True).start()
 
-        # 主线程专职处理 UI 任务，避免 Tk 在子线程导致 Tcl_AsyncDelete
-        while True:
+        # UI 队列处理函数
+        def process_ui_queue():
             try:
-                task = ui_queue.get()
-            except Exception as e:
-                log(f"UI queue error: {e}")
-                break
-            if task is None:
-                break
+                # 检查退出事件
+                quit_event = getattr(app_state, 'quit_event', None)
+                if quit_event and quit_event.is_set():
+                    # 退出事件被触发 - 清理所有窗口
+                    _cleanup_all_windows()
+                    root.quit()
+                    return
+                
+                while True:
+                    # 非阻塞获取任务
+                    task = ui_queue.get_nowait()
+                    if task is None:
+                        # 退出信号 - 清理所有窗口
+                        _cleanup_all_windows()
+                        root.quit()
+                        return
+                    try:
+                        task()
+                    except Exception as e:
+                        log(f"UI task error: {e}")
+            except queue.Empty:
+                pass
+            finally:
+                # 继续轮询 (100ms)
+                root.after(100, process_ui_queue)
+        
+        def _cleanup_all_windows():
+            """清理所有窗口"""
             try:
-                task()
+                # 销毁所有子窗口（Toplevel窗口）
+                for widget in root.winfo_children():
+                    try:
+                        if hasattr(widget, 'destroy'):
+                            widget.destroy()
+                    except Exception as e:
+                        log(f"Failed to destroy widget: {e}")
             except Exception as e:
-                log(f"UI task error: {e}")
+                log(f"Error during window cleanup: {e}")
+
+        # 启动队列处理
+        root.after(100, process_ui_queue)
+        
+        # 进入主事件循环
+        root.mainloop()
         
     except KeyboardInterrupt:
         log("Application interrupted by user")

@@ -16,6 +16,7 @@ class AppState:
     config: Dict[str, Any] = field(default_factory=dict)
 
     # UI组件引用
+    root: Optional[Any] = None      # tkinter.Tk (Global root window)
     listener: Optional[Any] = None  # pynput.keyboard.GlobalHotKeys
     icon: Optional[Any] = None      # pystray.Icon
 
@@ -24,6 +25,9 @@ class AppState:
 
     # UI 任务队列，确保 Tk 等 UI 操作仅在主线程运行
     ui_queue: Optional[Any] = None
+
+    # 退出事件，用于线程间同步退出
+    quit_event: Optional[Any] = None
 
     # 线程锁
     _lock: threading.Lock = field(default_factory=threading.Lock)

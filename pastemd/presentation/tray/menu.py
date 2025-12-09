@@ -16,6 +16,7 @@ from ...utils.version_checker import VersionChecker
 from ...i18n import t, iter_languages, get_language, set_language, get_language_label
 from .icon import create_status_icon
 from ..hotkey.dialog import HotkeyDialog
+from ..settings.dialog import SettingsDialog
 
 
 class TrayMenuManager:
@@ -30,6 +31,8 @@ class TrayMenuManager:
         self.version_checker = None  # 将由外部设置或按需创建
         self.latest_version = None  # 存储最新版本号
         self.latest_release_url = None  # 存储最新版本的下载链接
+        self.hotkey_dialog = None
+        self.settings_dialog = None
     
     def set_restart_hotkey_callback(self, callback):
         """设置重启热键的回调函数"""
@@ -71,9 +74,7 @@ class TrayMenuManager:
                 )
             )
 
-        language_menu = self._build_language_menu()
         html_formatting_menu = self._build_html_formatting_menu()
-        utility_menu = self._build_utility_menu()
 
         return pystray.Menu(
             pystray.MenuItem(
@@ -103,7 +104,6 @@ class TrayMenuManager:
                 checked=lambda item: config.get("move_cursor_to_end", True)
             ),
             html_formatting_menu,
-            utility_menu,
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(t("tray.menu.set_hotkey"), self._on_set_hotkey),
             pystray.Menu.SEPARATOR,
@@ -116,11 +116,9 @@ class TrayMenuManager:
             pystray.MenuItem(t("tray.menu.open_save_dir"), self._on_open_save_dir),
             pystray.MenuItem(t("tray.menu.open_log"), self._on_open_log),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem(t("tray.menu.edit_config"), self._on_edit_config),
-            pystray.MenuItem(t("tray.menu.reload_config"), self._on_reload),
+            pystray.MenuItem(t("settings.dialog.title"), self._on_open_settings),
             pystray.Menu.SEPARATOR,
             *version_menu_items,
-            language_menu,
             pystray.MenuItem(
                 t("tray.menu.about"),
                 self._on_open_about_page
@@ -128,28 +126,6 @@ class TrayMenuManager:
             pystray.MenuItem(t("tray.menu.quit"), self._on_quit)
         )
 
-    def _build_utility_menu(self) -> pystray.MenuItem:
-        """构建实用性功能（实验性）多选菜单"""
-        return pystray.MenuItem(
-            t("tray.menu.utility_features"),
-            pystray.Menu(
-                pystray.MenuItem(
-                    t("tray.menu.keep_original_formula"),
-                    self._on_toggle_keep_original_formula,
-                    checked=lambda item: app_state.config.get("Keep_original_formula", False)
-                ),
-            )
-        )
-
-    def _on_toggle_keep_original_formula(self, icon, item):
-        """切换保留原始数学公式实验性功能"""
-        current = app_state.config.get("Keep_original_formula", False)
-        app_state.config["Keep_original_formula"] = not current
-        self._save_config()
-        icon.menu = self.build_menu()
-        status = t("tray.status.keep_original_formula_on") if app_state.config["Keep_original_formula"] else t("tray.status.keep_original_formula_off")
-        self.notification_manager.notify("PasteMD", status, ok=True)
-    
     # 菜单回调函数
     def _on_toggle_enabled(self, icon, item):
         """切换热键启用状态"""
@@ -189,26 +165,39 @@ class TrayMenuManager:
                     t("tray.error.hotkey_save_failed", error=str(e)),
                     ok=False)
                 raise
-        
+
         def show_dialog_on_main():
             """在主线程打开/销毁 Tk 对话框"""
+            paused = False
             try:
+                if self.hotkey_dialog and self.hotkey_dialog.is_alive():
+                    self.hotkey_dialog.restore_and_focus()
+                    return
+                
                 # 暂停全局热键监听（避免录制时触发）
                 if self.pause_hotkey_callback:
                     self.pause_hotkey_callback()
+                    paused = True
                 
                 dialog = HotkeyDialog(
                     current_hotkey=app_state.hotkey_str,
                     on_save=save_hotkey,
                     on_close=self.resume_hotkey_callback  # 关闭对话框时恢复监听
                 )
+                self.hotkey_dialog = dialog
+
+                def _clear_dialog_ref(event=None):
+                    if getattr(event, "widget", None) is dialog.root or event is None:
+                        self.hotkey_dialog = None
+
+                dialog.root.bind("<Destroy>", _clear_dialog_ref)
                 dialog.show()
             except Exception as e:
                 log(f"Failed to show hotkey dialog: {e}")
                 self.notification_manager.notify("PasteMD", t("tray.error.open_hotkey_dialog", error=str(e)), ok=False)
             finally:
                 # 确保恢复热键监听
-                if self.resume_hotkey_callback:
+                if paused and self.resume_hotkey_callback:
                     self.resume_hotkey_callback()
 
         ui_queue = getattr(app_state, "ui_queue", None)
@@ -289,27 +278,56 @@ class TrayMenuManager:
             open(log_path, "w", encoding="utf-8").close()
         os.startfile(log_path)
     
-    def _on_edit_config(self, icon, item):
-        """编辑配置文件"""
-        config_path = get_config_path()
-        if not os.path.exists(config_path):
-            self._save_config()  # 创建默认配置文件
-        os.startfile(config_path)
-    
-    def _on_reload(self, icon, item):
-        """重载配置和热键"""
-        try:
-            app_state.config = self.config_loader.load()
-            app_state.hotkey_str = app_state.config.get("hotkey", "<ctrl>+b")
+    def _on_open_settings(self, icon, item):
+        """打开设置界面"""
+        def on_settings_save():
+            """设置保存后的回调"""
+            # 刷新菜单以反映可能的配置更改（如语言）
             set_language(app_state.config.get("language", "zh"))
+            icon.menu = self.build_menu()
             
+            # 如果热键更改，可能需要重启热键监听
             if self.restart_hotkey_callback:
                 self.restart_hotkey_callback()
-            icon.menu = self.build_menu()
-            self.notification_manager.notify("PasteMD", t("tray.status.config_reloaded"), ok=True)
-        except Exception as e:
-            log(f"Failed to reload config: {e}")
-            self.notification_manager.notify("PasteMD", t("tray.error.config_reload_failed"), ok=False)
+
+        def show_dialog_on_main():
+            """在主线程显示设置对话框"""
+            paused = False
+            try:
+                if self.settings_dialog and self.settings_dialog.is_alive():
+                    self.settings_dialog.restore_and_focus()
+                    return
+
+                # 暂停热键监听
+                if self.pause_hotkey_callback:
+                    self.pause_hotkey_callback()
+                    paused = True
+                    
+                dialog = SettingsDialog(
+                    on_save=on_settings_save,
+                    on_close=self.resume_hotkey_callback
+                )
+                self.settings_dialog = dialog
+
+                def _clear_settings_dialog(event=None):
+                    if getattr(event, "widget", None) is dialog.root or event is None:
+                        self.settings_dialog = None
+
+                dialog.root.bind("<Destroy>", _clear_settings_dialog)
+                dialog.show()
+            except Exception as e:
+                log(f"Failed to show settings dialog: {e}")
+                self.notification_manager.notify("PasteMD", f"Error opening settings: {e}", ok=False)
+            finally:
+                # 恢复热键监听
+                if paused and self.resume_hotkey_callback:
+                    self.resume_hotkey_callback()
+
+        ui_queue = getattr(app_state, "ui_queue", None)
+        if ui_queue is not None:
+            ui_queue.put(show_dialog_on_main)
+        else:
+            show_dialog_on_main()
 
     def _build_html_formatting_menu(self) -> pystray.MenuItem:
         """构建 HTML 格式化子菜单"""
@@ -345,49 +363,6 @@ class TrayMenuManager:
             else t("tray.status.html_strike_off")
         )
         self.notification_manager.notify("PasteMD", status, ok=True)
-
-    def _build_language_menu(self) -> pystray.MenuItem:
-        """构建语言选择菜单"""
-        language_items = []
-        for code, label in iter_languages():
-            language_items.append(
-                pystray.MenuItem(
-                    label,
-                    self._create_language_action(code),
-                    checked=self._create_language_checked(code)
-                )
-            )
-        return pystray.MenuItem(
-            t("tray.menu.language"),
-            pystray.Menu(*language_items)
-        )
-    
-    def _create_language_action(self, language_code: str):
-        """Wrap handler so pystray sees only (icon, item)."""
-        def action(icon, item):
-            self._on_change_language(icon, language_code)
-        return action
-    
-    def _create_language_checked(self, language_code: str):
-        """Wrap checked callback to avoid leaking extra args."""
-        def is_checked(item):
-            return get_language() == language_code
-        return is_checked
-    
-    def _on_change_language(self, icon, language_code: str):
-        """切换界面语言"""
-        current = app_state.config.get("language", "zh")
-        if current == language_code:
-            return
-        app_state.config["language"] = language_code
-        set_language(language_code)
-        self._save_config()
-        icon.menu = self.build_menu()
-        self.notification_manager.notify(
-            "PasteMD",
-            t("tray.status.language_changed", language=get_language_label(language_code)),
-            ok=True
-        )
     
     def _on_check_update(self, icon, item):
         """检查更新"""
@@ -491,8 +466,20 @@ class TrayMenuManager:
     def _on_quit(self, icon, item):
         """退出应用程序"""
         icon.stop()
+        
+        # 设置退出事件（AppState 中已经声明了这个属性）
+        if app_state.quit_event is None:
+            import threading
+            app_state.quit_event = threading.Event()
+        
+        app_state.quit_event.set()
+        
+        # 发送退出信号到主程序
         if getattr(app_state, "ui_queue", None):
-            app_state.ui_queue.put(None)
+            try:
+                app_state.ui_queue.put(None)
+            except Exception as e:
+                log(f"Failed to send quit signal: {e}")
     
     def _save_config(self):
         """保存配置"""
