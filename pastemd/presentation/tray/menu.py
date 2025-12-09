@@ -438,8 +438,20 @@ class TrayMenuManager:
     def _on_quit(self, icon, item):
         """退出应用程序"""
         icon.stop()
+        
+        # 设置退出事件（AppState 中已经声明了这个属性）
+        if app_state.quit_event is None:
+            import threading
+            app_state.quit_event = threading.Event()
+        
+        app_state.quit_event.set()
+        
+        # 发送退出信号到主程序
         if getattr(app_state, "ui_queue", None):
-            app_state.ui_queue.put(None)
+            try:
+                app_state.ui_queue.put(None)
+            except Exception as e:
+                log(f"Failed to send quit signal: {e}")
     
     def _save_config(self):
         """保存配置"""

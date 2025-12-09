@@ -11,6 +11,7 @@ from ...utils.resources import resource_path
 from ...i18n import t, iter_languages, get_language_label
 from ...core.state import app_state
 from ...config.loader import ConfigLoader
+from ...config.defaults import DEFAULT_CONFIG
 
 
 class SettingsDialog:
@@ -37,6 +38,8 @@ class SettingsDialog:
             self.root = tk.Tk()
             
         self.root.title(t("settings.dialog.title"))
+        # 窗口置顶
+        self.root.attributes("-topmost", True)
         
         # 设置图标
         try:
@@ -110,54 +113,49 @@ class SettingsDialog:
         # 语言设置
         ttk.Label(frame, text=t("settings.general.language")).grid(row=0, column=0, sticky=tk.W, pady=5)
         
-        self.lang_var = tk.StringVar(value=self.current_config.get("language", "zh"))
+        # 获取当前语言代码和对应的显示名称
+        current_code = self.current_config.get("language", "zh")
+        current_label = get_language_label(current_code)
+        
+        self.lang_var = tk.StringVar(value=current_label)
         lang_combo = ttk.Combobox(frame, textvariable=self.lang_var, state="readonly")
         
         # 构建语言列表
         langs = []
-        lang_codes = []
+        self.lang_map = {}
         for code, label in iter_languages():
             langs.append(label)
-            lang_codes.append(code)
+            self.lang_map[label] = code
         
         lang_combo['values'] = langs
-        
-        # 设置当前选中的语言
-        current_lang_code = self.current_config.get("language", "zh")
-        try:
-            current_index = lang_codes.index(current_lang_code)
-            lang_combo.current(current_index)
-        except ValueError:
-            lang_combo.current(0)
-            
-        # 绑定选择事件，将显示名称映射回代码
-        def on_lang_select(event):
-            selected_idx = lang_combo.current()
-            if selected_idx >= 0:
-                self.lang_var.set(lang_codes[selected_idx])
-                
-        lang_combo.bind("<<ComboboxSelected>>", on_lang_select)
         lang_combo.grid(row=0, column=1, sticky=tk.W, padx=5, pady=5)
         
         # 保存目录
         ttk.Label(frame, text=t("settings.general.save_dir")).grid(row=1, column=0, sticky=tk.W, pady=5)
         
+        # 按钮放在标签旁边
+        button_frame = ttk.Frame(frame)
+        button_frame.grid(row=1, column=1, sticky=tk.W, padx=5, pady=5)
+        
+        ttk.Button(button_frame, text=t("settings.general.browse"), command=self._browse_save_dir).pack(side=tk.LEFT, padx=2)
+        ttk.Button(button_frame, text=t("settings.general.restore_default"), command=self._restore_default_save_dir).pack(side=tk.LEFT, padx=2)
+        
+        # 文件路径输入框在下方，左边与按钮对齐
         self.save_dir_var = tk.StringVar(value=self.current_config.get("save_dir", ""))
-        ttk.Entry(frame, textvariable=self.save_dir_var, width=40).grid(row=1, column=1, sticky=tk.W, padx=5, pady=5)
-        ttk.Button(frame, text=t("settings.general.browse"), command=self._browse_save_dir).grid(row=1, column=2, sticky=tk.W, padx=5, pady=5)
+        ttk.Entry(frame, textvariable=self.save_dir_var, width=50).grid(row=2, column=1, sticky=tk.W, pady=5)
         
         # 复选框选项
         self.keep_file_var = tk.BooleanVar(value=self.current_config.get("keep_file", False))
-        ttk.Checkbutton(frame, text=t("settings.general.keep_file"), variable=self.keep_file_var).grid(row=2, column=0, columnspan=3, sticky=tk.W, pady=5)
+        ttk.Checkbutton(frame, text=t("settings.general.keep_file"), variable=self.keep_file_var).grid(row=3, column=0, columnspan=3, sticky=tk.W, pady=5)
         
         self.notify_var = tk.BooleanVar(value=self.current_config.get("notify", True))
-        ttk.Checkbutton(frame, text=t("settings.general.notify"), variable=self.notify_var).grid(row=3, column=0, columnspan=3, sticky=tk.W, pady=5)
+        ttk.Checkbutton(frame, text=t("settings.general.notify"), variable=self.notify_var).grid(row=4, column=0, columnspan=3, sticky=tk.W, pady=5)
         
         self.auto_open_var = tk.BooleanVar(value=self.current_config.get("auto_open_on_no_app", True))
-        ttk.Checkbutton(frame, text=t("settings.general.auto_open"), variable=self.auto_open_var).grid(row=4, column=0, columnspan=3, sticky=tk.W, pady=5)
+        ttk.Checkbutton(frame, text=t("settings.general.auto_open"), variable=self.auto_open_var).grid(row=5, column=0, columnspan=3, sticky=tk.W, pady=5)
         
         self.move_cursor_var = tk.BooleanVar(value=self.current_config.get("move_cursor_to_end", True))
-        ttk.Checkbutton(frame, text=t("settings.general.move_cursor"), variable=self.move_cursor_var).grid(row=5, column=0, columnspan=3, sticky=tk.W, pady=5)
+        ttk.Checkbutton(frame, text=t("settings.general.move_cursor"), variable=self.move_cursor_var).grid(row=6, column=0, columnspan=3, sticky=tk.W, pady=5)
 
     def _create_conversion_tab(self):
         """创建转换设置选项卡"""
@@ -166,30 +164,42 @@ class SettingsDialog:
         
         # Pandoc 路径
         ttk.Label(frame, text=t("settings.conversion.pandoc_path")).grid(row=0, column=0, sticky=tk.W, pady=5)
+        
+        # 按钮放在标签旁边
+        pandoc_button_frame = ttk.Frame(frame)
+        pandoc_button_frame.grid(row=0, column=1, sticky=tk.W, padx=5, pady=5)
+        ttk.Button(pandoc_button_frame, text=t("settings.general.browse"), command=self._browse_pandoc).pack(side=tk.LEFT, padx=2)
+        
+        # 输入框在下方，左边与按钮对齐
         self.pandoc_path_var = tk.StringVar(value=self.current_config.get("pandoc_path", "pandoc"))
-        ttk.Entry(frame, textvariable=self.pandoc_path_var, width=40).grid(row=0, column=1, sticky=tk.W, padx=5, pady=5)
-        ttk.Button(frame, text=t("settings.general.browse"), command=self._browse_pandoc).grid(row=0, column=2, sticky=tk.W, padx=5, pady=5)
+        ttk.Entry(frame, textvariable=self.pandoc_path_var, width=50).grid(row=1, column=1, sticky=tk.W, pady=5)
         
         # Reference Docx
-        ttk.Label(frame, text=t("settings.conversion.reference_docx")).grid(row=1, column=0, sticky=tk.W, pady=5)
+        ttk.Label(frame, text=t("settings.conversion.reference_docx")).grid(row=2, column=0, sticky=tk.W, pady=5)
+        
+        # 按钮放在标签旁边
+        ref_button_frame = ttk.Frame(frame)
+        ref_button_frame.grid(row=2, column=1, sticky=tk.W, padx=5, pady=5)
+        ttk.Button(ref_button_frame, text=t("settings.general.browse"), command=self._browse_ref_docx).pack(side=tk.LEFT, padx=2)
+        
+        # 输入框在下方，左边与按钮对齐
         ref_docx = self.current_config.get("reference_docx")
         self.ref_docx_var = tk.StringVar(value=ref_docx if ref_docx else "")
-        ttk.Entry(frame, textvariable=self.ref_docx_var, width=40).grid(row=1, column=1, sticky=tk.W, padx=5, pady=5)
-        ttk.Button(frame, text=t("settings.general.browse"), command=self._browse_ref_docx).grid(row=1, column=2, sticky=tk.W, padx=5, pady=5)
+        ttk.Entry(frame, textvariable=self.ref_docx_var, width=50).grid(row=3, column=1, sticky=tk.W, pady=5)
         
         # HTML 格式化
-        ttk.Label(frame, text=t("settings.conversion.html_formatting"), font=("", 10, "bold")).grid(row=2, column=0, columnspan=3, sticky=tk.W, pady=(15, 5))
+        ttk.Label(frame, text=t("settings.conversion.html_formatting"), font=("", 10, "bold")).grid(row=4, column=0, columnspan=3, sticky=tk.W, pady=(15, 5))
         
         html_fmt = self.current_config.get("html_formatting", {})
         self.strikethrough_var = tk.BooleanVar(value=html_fmt.get("strikethrough_to_del", True))
-        ttk.Checkbutton(frame, text=t("settings.conversion.strikethrough"), variable=self.strikethrough_var).grid(row=3, column=0, columnspan=3, sticky=tk.W, pady=2)
+        ttk.Checkbutton(frame, text=t("settings.conversion.strikethrough"), variable=self.strikethrough_var).grid(row=5, column=0, columnspan=3, sticky=tk.W, pady=2)
         
         # 其他转换选项
         self.md_indent_var = tk.BooleanVar(value=self.current_config.get("md_disable_first_para_indent", True))
-        ttk.Checkbutton(frame, text=t("settings.conversion.md_indent"), variable=self.md_indent_var).grid(row=4, column=0, columnspan=3, sticky=tk.W, pady=2)
+        ttk.Checkbutton(frame, text=t("settings.conversion.md_indent"), variable=self.md_indent_var).grid(row=6, column=0, columnspan=3, sticky=tk.W, pady=2)
         
         self.html_indent_var = tk.BooleanVar(value=self.current_config.get("html_disable_first_para_indent", True))
-        ttk.Checkbutton(frame, text=t("settings.conversion.html_indent"), variable=self.html_indent_var).grid(row=5, column=0, columnspan=3, sticky=tk.W, pady=2)
+        ttk.Checkbutton(frame, text=t("settings.conversion.html_indent"), variable=self.html_indent_var).grid(row=7, column=0, columnspan=3, sticky=tk.W, pady=2)
 
     def _create_advanced_tab(self):
         """创建高级设置选项卡"""
@@ -212,23 +222,62 @@ class SettingsDialog:
         ttk.Checkbutton(frame, text=t("settings.conversion.keep_formula"), variable=self.keep_formula_var).grid(row=0, column=0, sticky=tk.W, pady=5)
 
     def _browse_save_dir(self):
-        path = filedialog.askdirectory(initialdir=os.path.expandvars(self.save_dir_var.get()))
+        # 临时取消置顶，让文件对话框不被遮挡
+        original_topmost = self.root.attributes("-topmost")
+        self.root.attributes("-topmost", False)
+        self.root.update()
+        
+        path = filedialog.askdirectory(
+            title=t("settings.dialog.select_save_dir"),
+            initialdir=os.path.expandvars(self.save_dir_var.get())
+        )
+        
+        # 恢复置顶设置
+        self.root.attributes("-topmost", original_topmost)
+        
         if path:
             self.save_dir_var.set(path)
 
+    def _restore_default_save_dir(self):
+        """恢复默认保存目录（展开环境变量）"""
+        default_save_dir = DEFAULT_CONFIG["save_dir"]
+        # 展开环境变量，如 %USERPROFILE% 转换为实际路径
+        expanded_save_dir = os.path.expandvars(default_save_dir)
+        self.save_dir_var.set(expanded_save_dir)
+
     def _browse_pandoc(self):
+        # 临时取消置顶，让文件对话框不被遮挡
+        original_topmost = self.root.attributes("-topmost")
+        self.root.attributes("-topmost", False)
+        self.root.update()
+        
         path = filedialog.askopenfilename(
-            filetypes=[("Executable", "*.exe"), ("All Files", "*.*")],
+            title=t("settings.dialog.select_pandoc"),
+            filetypes=[(t("settings.file_type.executable"), "*.exe"), (t("settings.file_type.all_files"), "*.*")],
             initialdir=os.path.dirname(self.pandoc_path_var.get()) if self.pandoc_path_var.get() else None
         )
+        
+        # 恢复置顶设置
+        self.root.attributes("-topmost", original_topmost)
+        
         if path:
             self.pandoc_path_var.set(path)
 
     def _browse_ref_docx(self):
+        # 临时取消置顶，让文件对话框不被遮挡
+        original_topmost = self.root.attributes("-topmost")
+        self.root.attributes("-topmost", False)
+        self.root.update()
+        
         path = filedialog.askopenfilename(
-            filetypes=[("Word Document", "*.docx"), ("All Files", "*.*")],
+            title=t("settings.dialog.select_ref_docx"),
+            filetypes=[(t("settings.file_type.word_doc"), "*.docx"), (t("settings.file_type.all_files"), "*.*")],
             initialdir=os.path.dirname(self.ref_docx_var.get()) if self.ref_docx_var.get() else None
         )
+        
+        # 恢复置顶设置
+        self.root.attributes("-topmost", original_topmost)
+        
         if path:
             self.ref_docx_var.set(path)
 
@@ -238,7 +287,9 @@ class SettingsDialog:
             # 更新配置字典
             new_config = self.current_config.copy()
             
-            new_config["language"] = self.lang_var.get()
+            # 将显示名称映射回代码
+            selected_label = self.lang_var.get()
+            new_config["language"] = self.lang_map.get(selected_label, "zh")
             new_config["save_dir"] = self.save_dir_var.get()
             new_config["keep_file"] = self.keep_file_var.get()
             new_config["notify"] = self.notify_var.get()
@@ -268,7 +319,8 @@ class SettingsDialog:
             
             # 如果语言改变了，可能需要重启或刷新界面（这里简单处理，回调中处理刷新）
             
-            messagebox.showinfo("Success", t("settings.success.saved"))
+            # 显示成功消息（置顶）
+            self._show_topmost_message(t("settings.title.success"), t("settings.success.saved"), "info")
             
             if self.on_save_callback:
                 self.on_save_callback()
@@ -277,7 +329,8 @@ class SettingsDialog:
             
         except Exception as e:
             log(f"Failed to save settings: {e}")
-            messagebox.showerror("Error", t("settings.error.save_failed", error=str(e)))
+            # 显示错误消息（置顶）
+            self._show_topmost_message(t("settings.title.error"), t("settings.error.save_failed", error=str(e)), "error")
 
     def _on_cancel(self):
         self._safe_destroy()
@@ -293,11 +346,53 @@ class SettingsDialog:
         except Exception as e:
             log(f"Error destroying settings window: {e}")
 
+    def _show_topmost_message(self, title, message, msg_type="info"):
+        """显示置顶消息框（使用标准样式）"""
+        # 创建临时窗口来控制消息框的置顶属性
+        temp_root = tk.Toplevel(self.root)
+        temp_root.withdraw()  # 隐藏临时窗口
+        temp_root.attributes("-topmost", True)
+        
+        # 使用标准消息框
+        if msg_type == "error":
+            result = messagebox.showerror(title, message, parent=self.root)
+        else:
+            result = messagebox.showinfo(title, message, parent=self.root)
+        
+        # 清理临时窗口
+        temp_root.destroy()
+
     def show(self):
+        """显示设置对话框（非阻塞模式）"""
         try:
-            if isinstance(self.root, tk.Toplevel):
-                self.root.wait_window()
-            else:
-                self.root.mainloop()
+            # 设置对话框在后台显示，让主事件循环继续运行
+            self.root.transient(app_state.root)
+            self.root.grab_set()  # 设置为模态对话框
+            
+            # 监听退出事件，在后台检查
+            self._monitor_quit_event()
+            
+            # 显示窗口
+            self.root.deiconify()
+            
         except Exception as e:
-            log(f"Error in settings mainloop: {e}")
+            log(f"Error in settings show: {e}")
+            self._safe_destroy()
+    
+    def _monitor_quit_event(self):
+        """监听退出事件，自动关闭设置对话框"""
+        def check_quit():
+            try:
+                # 检查退出事件
+                if app_state.quit_event and app_state.quit_event.is_set():
+                    self._safe_destroy()
+                    return
+                
+                # 继续监听
+                self.root.after(200, check_quit)
+            except Exception as e:
+                log(f"Error in quit monitor: {e}")
+                self.root.after(200, check_quit)
+        
+        # 开始监听
+        self.root.after(200, check_quit)

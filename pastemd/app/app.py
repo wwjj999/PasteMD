@@ -111,6 +111,10 @@ def main() -> None:
         ui_queue: queue.Queue = queue.Queue()
         app_state.ui_queue = ui_queue
         
+        # 初始化退出事件
+        import threading
+        app_state.quit_event = threading.Event()
+        
         # 初始化全局 Tk 实例 (解决 Tcl_AsyncDelete 问题)
         root = tk.Tk()
         root.withdraw()  # 隐藏主窗口
@@ -137,10 +141,20 @@ def main() -> None:
         # UI 队列处理函数
         def process_ui_queue():
             try:
+                # 检查退出事件
+                quit_event = getattr(app_state, 'quit_event', None)
+                if quit_event and quit_event.is_set():
+                    # 退出事件被触发 - 清理所有窗口
+                    _cleanup_all_windows()
+                    root.quit()
+                    return
+                
                 while True:
                     # 非阻塞获取任务
                     task = ui_queue.get_nowait()
                     if task is None:
+                        # 退出信号 - 清理所有窗口
+                        _cleanup_all_windows()
                         root.quit()
                         return
                     try:
@@ -152,6 +166,19 @@ def main() -> None:
             finally:
                 # 继续轮询 (100ms)
                 root.after(100, process_ui_queue)
+        
+        def _cleanup_all_windows():
+            """清理所有窗口"""
+            try:
+                # 销毁所有子窗口（Toplevel窗口）
+                for widget in root.winfo_children():
+                    try:
+                        if hasattr(widget, 'destroy'):
+                            widget.destroy()
+                    except Exception as e:
+                        log(f"Failed to destroy widget: {e}")
+            except Exception as e:
+                log(f"Error during window cleanup: {e}")
 
         # 启动队列处理
         root.after(100, process_ui_queue)
