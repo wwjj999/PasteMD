@@ -2,6 +2,7 @@
 
 import copy
 import os
+import webbrowser
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from typing import Optional, Callable, Dict, Any
@@ -32,6 +33,9 @@ class SettingsDialog:
         
         # 加载当前配置的副本，避免直接修改 app_state
         self.current_config = copy.deepcopy(app_state.config)
+        
+        # 初始化 Filter 列表
+        self.filters_list = list(self.current_config.get("pandoc_filters", []))
         
         if app_state.root:
             self.root = tk.Toplevel(app_state.root)
@@ -224,21 +228,24 @@ class SettingsDialog:
         ttk.Button(ref_button_frame, text=t("settings.general.browse"), command=self._browse_ref_docx).pack(side=tk.LEFT, padx=2)
         ttk.Button(ref_button_frame, text=t("settings.general.clear"), command=self._clear_ref_docx).pack(side=tk.LEFT, padx=2)
         
+        # Pandoc Filters 配置区
+        current_row = self._create_filters_section(frame, row=4)
+        
         # HTML 格式化
-        ttk.Label(frame, text=t("settings.conversion.html_formatting"), font=("", 10, "bold")).grid(row=4, column=0, columnspan=3, sticky=tk.W, pady=(15, 5))
+        ttk.Label(frame, text=t("settings.conversion.html_formatting"), font=("", 10, "bold")).grid(row=current_row, column=0, columnspan=3, sticky=tk.W, pady=(15, 5))
         
         html_fmt = self.current_config.get("html_formatting", {})
         self.strikethrough_var = tk.BooleanVar(value=html_fmt.get("strikethrough_to_del", True))
-        ttk.Checkbutton(frame, text=t("settings.conversion.strikethrough"), variable=self.strikethrough_var).grid(row=5, column=0, columnspan=3, sticky=tk.W, pady=2)
+        ttk.Checkbutton(frame, text=t("settings.conversion.strikethrough"), variable=self.strikethrough_var).grid(row=current_row+1, column=0, columnspan=3, sticky=tk.W, pady=2)
         
-        ttk.Label(frame, text=t("settings.conversion.first_paragraph_heading"), font=("", 10, "bold")).grid(row=6, column=0, columnspan=3, sticky=tk.W, pady=(12, 5))
+        ttk.Label(frame, text=t("settings.conversion.first_paragraph_heading"), font=("", 10, "bold")).grid(row=current_row+2, column=0, columnspan=3, sticky=tk.W, pady=(12, 5))
         
         # 其他转换选项
         self.md_indent_var = tk.BooleanVar(value=self.current_config.get("md_disable_first_para_indent", True))
-        ttk.Checkbutton(frame, text=t("settings.conversion.md_indent"), variable=self.md_indent_var).grid(row=7, column=0, columnspan=3, sticky=tk.W, pady=2)
+        ttk.Checkbutton(frame, text=t("settings.conversion.md_indent"), variable=self.md_indent_var).grid(row=current_row+3, column=0, columnspan=3, sticky=tk.W, pady=2)
         
         self.html_indent_var = tk.BooleanVar(value=self.current_config.get("html_disable_first_para_indent", True))
-        ttk.Checkbutton(frame, text=t("settings.conversion.html_indent"), variable=self.html_indent_var).grid(row=8, column=0, columnspan=3, sticky=tk.W, pady=2)
+        ttk.Checkbutton(frame, text=t("settings.conversion.html_indent"), variable=self.html_indent_var).grid(row=current_row+4, column=0, columnspan=3, sticky=tk.W, pady=2)
 
     def _create_advanced_tab(self):
         """创建高级设置选项卡"""
@@ -356,6 +363,9 @@ class SettingsDialog:
             new_config["enable_excel"] = self.excel_enable_var.get()
             new_config["excel_keep_format"] = self.excel_format_var.get()
             
+            # 保存 Pandoc Filters 列表
+            new_config["pandoc_filters"] = self.filters_list
+            
             # 保存到文件
             self.config_loader.save(new_config)
             
@@ -471,3 +481,326 @@ class SettingsDialog:
             self.root.after_idle(clear_sel)
         except Exception:
             pass
+
+    def _create_filters_section(self, frame: ttk.Frame, row: int) -> int:
+        """创建 Pandoc Filters 配置区"""
+        # 分组标题
+        ttk.Label(frame, text=t("settings.conversion.pandoc_filters"), font=("", 10, "bold")).grid(
+            row=row, column=0, columnspan=3, sticky=tk.W, pady=(15, 5)
+        )
+
+        # 资源链接
+        link_frame = ttk.Frame(frame)
+        link_frame.grid(row=row+1, column=0, columnspan=3, sticky=tk.W, padx=(0, 5), pady=(0, 5))
+        
+        # 创建超链接
+        link1_text = t("settings.conversion.filter_resources_link1_text")
+        link1_url = "https://github.com/jgm/pandoc/wiki/Pandoc-Filters"
+        link1 = self._create_hyperlink_label(link_frame, link1_text, link1_url)
+        link1.pack(side=tk.LEFT)
+        
+        # 分隔符
+        separator = ttk.Label(link_frame, text=" | ")
+        separator.pack(side=tk.LEFT)
+        
+        # 第二个链接
+        link2_text = t("settings.conversion.filter_resources_link2_text")
+        link2_url = "https://pandoc.org/lua-filters.html"
+        link2 = self._create_hyperlink_label(link_frame, link2_text, link2_url)
+        link2.pack(side=tk.LEFT)
+
+        # 列表框
+        self.filters_listbox = tk.Listbox(
+            frame, 
+            height=5, 
+            selectmode=tk.SINGLE,
+            activestyle="none"
+        )
+        self.filters_listbox.grid(row=row+2, column=0, columnspan=2, sticky=tk.NSEW, padx=(0, 5), pady=5)
+        
+        # 按钮组
+        button_frame = ttk.Frame(frame)
+        button_frame.grid(row=row+2, column=2, sticky=tk.N, pady=5)
+        
+        # 按钮宽度统一
+        btn_width = 8
+        
+        self.add_filter_btn = ttk.Button(
+            button_frame, 
+            text=t("settings.conversion.add_filter"), 
+            command=self._on_add_filter,
+            width=btn_width
+        )
+        self.add_filter_btn.pack(pady=2)
+        
+        self.remove_filter_btn = ttk.Button(
+            button_frame, 
+            text=t("settings.conversion.remove_filter"), 
+            command=self._on_remove_filter,
+            width=btn_width
+        )
+        self.remove_filter_btn.pack(pady=2)
+        
+        self.move_up_btn = ttk.Button(
+            button_frame, 
+            text=t("settings.conversion.move_up"), 
+            command=self._on_move_filter_up,
+            width=btn_width
+        )
+        self.move_up_btn.pack(pady=2)
+        
+        self.move_down_btn = ttk.Button(
+            button_frame, 
+            text=t("settings.conversion.move_down"), 
+            command=self._on_move_filter_down,
+            width=btn_width
+        )
+        self.move_down_btn.pack(pady=2)
+        
+        # 说明文本
+        note_label = ttk.Label(
+            frame, 
+            text=t("settings.conversion.pandoc_filters_note"),
+            foreground="gray",
+            font=("", 8)
+        )
+        note_label.grid(row=row+3, column=0, columnspan=3, sticky=tk.W, padx=(0, 5), pady=(0, 8))
+        
+        # 绑定列表框选择事件
+        self.filters_listbox.bind("<<ListboxSelect>>", lambda e: self._update_filter_buttons_state())
+        
+        # 绑定双击事件进行编辑
+        self.filters_listbox.bind("<Double-Button-1>", lambda e: self._on_edit_filter())
+        
+        # 初始化列表内容
+        self._refresh_filters_listbox()
+        
+        # 初始化按钮状态
+        self._update_filter_buttons_state()
+        
+        # 返回下一个可用行号
+        return row + 4
+
+    def _create_hyperlink_label(self, parent: tk.Widget, text: str, url: str) -> ttk.Label:
+        """创建可点击的超链接标签"""
+        link = ttk.Label(
+            parent,
+            text=text,
+            foreground="#0066CC",
+            cursor="hand2",
+            font=("", 8, "underline")
+        )
+        
+        # 绑定点击事件
+        link.bind("<Button-1>", lambda e: webbrowser.open(url))
+        
+        return link
+
+    def _on_add_filter(self):
+        """处理添加 Filter 的操作"""
+        # 打开文件选择对话框
+        path = filedialog.askopenfilename(
+            title=t("settings.dialog.select_filter"),
+            filetypes=[
+                (t("settings.file_type.lua_script"), "*.lua"),
+                (t("settings.file_type.executable"), "*.exe;*.cmd;*.bat"),
+                (t("settings.file_type.all_files"), "*.*")
+            ]
+        )
+        
+        # 用户是否选择文件
+        if path:
+            # 将路径添加到 filters_list
+            self.filters_list.append(path)
+            
+            # 刷新列表框显示
+            self._refresh_filters_listbox()
+            
+            # 更新按钮状态
+            self._update_filter_buttons_state()
+
+    def _on_remove_filter(self):
+        """删除列表中选中的 Filter"""
+        # 获取当前选中的索引
+        selection = self.filters_listbox.curselection()
+        
+        # 检查是否有选中项
+        if not selection:
+            return
+            
+        index = selection[0]
+        
+        # 从 filters_list 中删除对应项
+        self.filters_list.pop(index)
+        
+        # 刷新列表框显示
+        self._refresh_filters_listbox()
+        
+        # 更新按钮状态
+        self._update_filter_buttons_state()
+
+    def _on_move_filter_up(self):
+        """将选中的 Filter 向上移动一位"""
+        # 获取选中索引
+        selection = self.filters_listbox.curselection()
+        
+        # 检查是否有选中项
+        if not selection:
+            return
+            
+        index = selection[0]
+        
+        # 检查有效性
+        if index > 0:
+            # 交换位置
+            self.filters_list[index], self.filters_list[index-1] = \
+                self.filters_list[index-1], self.filters_list[index]
+            
+            # 刷新显示
+            self._refresh_filters_listbox()
+            
+            # 恢复选中
+            self.filters_listbox.selection_set(index-1)
+            
+            # 更新按钮状态
+            self._update_filter_buttons_state()
+
+    def _on_move_filter_down(self):
+        """将选中的 Filter 向下移动一位"""
+        # 获取选中索引
+        selection = self.filters_listbox.curselection()
+        
+        # 检查是否有选中项
+        if not selection:
+            return
+            
+        index = selection[0]
+        
+        # 检查有效性
+        if index < len(self.filters_list) - 1:
+            # 交换位置
+            self.filters_list[index], self.filters_list[index+1] = \
+                self.filters_list[index+1], self.filters_list[index]
+            
+            # 刷新显示
+            self._refresh_filters_listbox()
+            
+            # 恢复选中
+            self.filters_listbox.selection_set(index+1)
+            
+            # 更新按钮状态
+            self._update_filter_buttons_state()
+
+    def _update_filter_buttons_state(self):
+        """根据当前选择状态更新按钮的启用/禁用状态"""
+        # 获取选中索引
+        selection = self.filters_listbox.curselection()
+        
+        # 判断是否有选中
+        has_selection = bool(selection)
+        
+        if has_selection:
+            index = selection[0]
+            is_first = (index == 0)
+            is_last = (index == len(self.filters_list) - 1)
+            
+            # 设置按钮状态
+            self.remove_filter_btn.config(state=tk.NORMAL)
+            self.move_up_btn.config(state=tk.DISABLED if is_first else tk.NORMAL)
+            self.move_down_btn.config(state=tk.DISABLED if is_last else tk.NORMAL)
+        else:
+            # 无选中项时禁用移除/上移/下移按钮
+            self.remove_filter_btn.config(state=tk.DISABLED)
+            self.move_up_btn.config(state=tk.DISABLED)
+            self.move_down_btn.config(state=tk.DISABLED)
+
+    def _refresh_filters_listbox(self):
+        """刷新列表框显示内容，同步 filters_list 数据"""
+        try:
+            # 清空列表框
+            self.filters_listbox.delete(0, tk.END)
+            
+            # 遍历 filters_list，显示完整路径
+            for path in self.filters_list:
+                self.filters_listbox.insert(tk.END, path)
+        except Exception as e:
+            log(f"Failed to refresh filters listbox: {e}")
+
+    def _on_edit_filter(self):
+        """处理双击编辑 Filter 路径"""
+        # 获取当前选中的索引
+        selection = self.filters_listbox.curselection()
+        
+        # 检查是否有选中项
+        if not selection:
+            return
+            
+        index = selection[0]
+        current_path = self.filters_list[index]
+        
+        # 创建编辑对话框
+        edit_dialog = tk.Toplevel(self.root)
+        edit_dialog.title(t("settings.dialog.edit_filter"))
+        edit_dialog.transient(self.root)
+        edit_dialog.grab_set()
+        
+        # 设置对话框大小和位置
+        dialog_width = 500
+        dialog_height = 120
+        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (dialog_width // 2)
+        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (dialog_height // 2)
+        edit_dialog.geometry(f"{dialog_width}x{dialog_height}+{x}+{y}")
+        edit_dialog.resizable(False, False)
+        
+        # 创建标签和输入框
+        frame = ttk.Frame(edit_dialog, padding=10)
+        frame.pack(fill=tk.BOTH, expand=True)
+        
+        ttk.Label(frame, text=t("settings.dialog.filter_path")).pack(anchor=tk.W, pady=(0, 5))
+        
+        path_var = tk.StringVar(value=current_path)
+        path_entry = ttk.Entry(frame, textvariable=path_var, width=60)
+        path_entry.pack(fill=tk.X, pady=(0, 10))
+        path_entry.focus_set()
+        path_entry.select_range(0, tk.END)
+        
+        # 按钮组
+        button_frame = ttk.Frame(frame)
+        button_frame.pack(fill=tk.X)
+        
+        def save_edit():
+            """保存编辑"""
+            new_path = path_var.get().strip()
+            if new_path:
+                self.filters_list[index] = new_path
+                self._refresh_filters_listbox()
+                # 恢复选中
+                self.filters_listbox.selection_set(index)
+            edit_dialog.destroy()
+        
+        def cancel_edit():
+            """取消编辑"""
+            edit_dialog.destroy()
+        
+        # 浏览按钮
+        def browse_filter():
+            """浏览文件"""
+            path = filedialog.askopenfilename(
+                title=t("settings.dialog.select_filter"),
+                filetypes=[
+                    (t("settings.file_type.lua_script"), "*.lua"),
+                    (t("settings.file_type.executable"), "*.exe;*.cmd;*.bat"),
+                    (t("settings.file_type.all_files"), "*.*")
+                ],
+                initialfile=path_var.get()
+            )
+            if path:
+                path_var.set(path)
+        
+        ttk.Button(button_frame, text=t("settings.general.browse"), command=browse_filter).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(button_frame, text=t("settings.buttons.cancel"), command=cancel_edit).pack(side=tk.RIGHT)
+        ttk.Button(button_frame, text=t("settings.buttons.save"), command=save_edit).pack(side=tk.RIGHT, padx=(0, 5))
+        
+        # 绑定 Enter 键保存，Escape 键取消
+        edit_dialog.bind("<Return>", lambda e: save_edit())
+        edit_dialog.bind("<Escape>", lambda e: cancel_edit())

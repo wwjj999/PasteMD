@@ -144,7 +144,8 @@
   },
   "move_cursor_to_end": true,
   "Keep_original_formula": false,
-  "language": "zh"
+  "language": "zh",
+  "pandoc_filters": []
 }
 ```
 
@@ -166,8 +167,106 @@
 * **`move_cursor_to_end`**：**✨ 新功能** - 插入内容后是否将光标移动到插入内容的末尾（默认 true）。
 * **`Keep_original_formula`**：**✨ 新功能** - 是否保留原始数学公式（LaTeX 代码形式）。
 * `language`：界面语言，`zh` 中文，`en` 英文。
+* **`pandoc_filters`**：**✨ 新功能** - 自定义 Pandoc Filter 列表。可添加 `.lua` 脚本或可执行文件路径，Filter 将按照列表顺序依次执行。用于扩展 Pandoc 转换功能，如自定义格式处理、特殊语法转换等。默认为空列表。示例：`["%APPDATA%\\npm\\mermaid-filter.cmd"]` 可实现 Mermaid 图表支持。
 
 修改后可在托盘菜单选择 **“重载配置/热键”** 立即生效。
+
+---
+
+## 🔧 高级功能：自定义 Pandoc Filters
+
+### 什么是 Pandoc Filter？
+
+Pandoc Filter 是在文档转换过程中对内容进行自定义处理的插件程序。PasteMD 支持配置多个 Filter，按顺序依次处理文档内容，实现扩展功能。
+
+### 使用场景示例：Mermaid 图表支持
+
+如果您想在 Markdown 中使用 Mermaid 图表并正确转换到 Word，可以使用 [mermaid-filter](https://github.com/raghur/mermaid-filter)。
+
+**1. 安装 mermaid-filter**
+
+```bash
+npm install --global mermaid-filter
+```
+
+*前置条件：需要先安装 [Node.js](https://nodejs.org/)*
+
+<details>
+<summary>⚠️ <b>故障排除：Chrome 下载失败</b></summary>
+
+安装 mermaid-filter 时需要下载 Chromium 浏览器。如果自动下载失败，可以手动下载：
+
+**步骤 1：查找所需的 Chromium 版本号**
+
+查看文件：`%APPDATA%\npm\node_modules\mermaid-filter\node_modules\puppeteer-core\lib\cjs\puppeteer\revisions.d.ts`
+
+找到类似以下内容：
+```typescript
+chromium: "1108766";
+```
+
+记下这个版本号（例如：`1108766`）。
+
+**步骤 2：下载 Chromium**
+
+根据上一步获取的版本号，下载对应的 Chromium：
+
+```
+https://storage.googleapis.com/chromium-browser-snapshots/Win_x64/1108766/chrome-win.zip
+```
+
+（将 URL 中的 `1108766` 替换为你查到的版本号）
+
+**步骤 3：解压到指定目录**
+
+将下载的 `chrome-win.zip` 解压到以下目录：
+
+```
+%USERPROFILE%\.cache\puppeteer\chrome\win64-1108766\chrome-win
+```
+
+（目录中的 `1108766` 也需要替换为你的版本号）
+
+解压后，应该有 `chrome.exe` 位于：  
+`%USERPROFILE%\.cache\puppeteer\chrome\win64-1108766\chrome-win\chrome.exe`
+
+</details>
+
+**2. 配置到 PasteMD**
+
+方式一：通过设置界面
+- 打开 PasteMD 设置 → 转换选项卡 → Pandoc Filters
+- 点击「添加...」按钮
+- 选择 Filter 文件：`%APPDATA%\npm\mermaid-filter.cmd`
+- 保存设置
+
+方式二：编辑配置文件
+```json
+{
+  "pandoc_filters": [
+    "%APPDATA%\\npm\\mermaid-filter.cmd"
+  ]
+}
+```
+
+**3. 测试效果**
+
+复制以下 Markdown 内容并使用 PasteMD 转换：
+
+~~~markdown
+```mermaid
+graph LR
+    A[开始] --> B[处理]
+    B --> C[结束]
+```
+~~~
+
+Mermaid 图表将被渲染为图片并插入到 Word 文档中。
+
+### 更多 Filter 资源
+
+- [Pandoc Filters 官方列表](https://github.com/jgm/pandoc/wiki/Pandoc-Filters)
+- [Lua Filters 文档](https://pandoc.org/lua-filters.html)
 
 ---
 

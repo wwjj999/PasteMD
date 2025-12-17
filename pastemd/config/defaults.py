@@ -49,4 +49,5 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "Keep_original_formula": False,
     "language": "zh",
     "enable_latex_replacements": True,
+    "pandoc_filters": [],
 }

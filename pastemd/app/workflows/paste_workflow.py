@@ -193,11 +193,17 @@ class PasteWorkflow:
             
             # 2. 生成 DOCX 字节流
             self._ensure_pandoc_integration()
+            if self.pandoc_integration is None:
+                # 已经在 _ensure_pandoc_integration 中显示了错误通知
+                return
+            
             docx_bytes = self.pandoc_integration.convert_html_to_docx_bytes(
                 html_text=html_text,
                 reference_docx=config.get("reference_docx"),
                 Keep_original_formula=config.get("Keep_original_formula", False),
-                enable_latex_replacements=config.get("enable_latex_replacements", True)
+                enable_latex_replacements=config.get("enable_latex_replacements", True),
+                custom_filters=config.get("pandoc_filters", []),
+                cwd=config.get("save_dir"),
             )
 
             # 3. 在内存中处理 DOCX 样式
@@ -285,16 +291,31 @@ class PasteWorkflow:
         # 2. 处理LaTeX公式
         md_text = convert_latex_delimiters(md_text)
 
-        # 2. 生成DOCX字节流
+        # 3. 检测文件行数，如果较大则提示用户转换已开始
+        line_count = md_text.count('\n') + 1
+        if line_count >= 100:
+            self.notification_manager.notify(
+                "PasteMD",
+                t("workflow.markdown.conversion_started", lines=line_count),
+                ok=True
+            )
+
+        # 4. 生成DOCX字节流
         self._ensure_pandoc_integration()
+        if self.pandoc_integration is None:
+            # 已经在 _ensure_pandoc_integration 中显示了错误通知
+            return
+        
         docx_bytes = self.pandoc_integration.convert_to_docx_bytes(
             md_text=md_text,
             reference_docx=config.get("reference_docx"),
             Keep_original_formula=config.get("Keep_original_formula", False),
-            enable_latex_replacements=config.get("enable_latex_replacements", True)
+            enable_latex_replacements=config.get("enable_latex_replacements", True),
+            custom_filters=config.get("pandoc_filters", []),
+            cwd=config.get("save_dir"),
         )
 
-        # 3. 在内存中处理 DOCX 样式
+        # 5. 在内存中处理 DOCX 样式
         if config.get("md_disable_first_para_indent", True):
             docx_bytes = DocxProcessor.apply_custom_processing(
                 docx_bytes,
@@ -302,14 +323,14 @@ class PasteWorkflow:
                 target_style="Body Text"
             )
 
-        # 4. 使用临时文件插入
+        # 6. 使用临时文件插入
         temp_dir = config.get("temp_dir")  # 可选：支持 RAM 盘目录
         with EphemeralFile(suffix=".docx", dir_=temp_dir) as eph:
             eph.write_bytes(docx_bytes)
             # 插入
             inserted = self._perform_word_insertion(eph.path, target)
 
-        # 5. 保存文件
+        # 7. 保存文件
         if config.get("keep_file", False):
             # 生成输出路径
             try:
@@ -328,7 +349,7 @@ class PasteWorkflow:
                     ok=False
                 )
         
-        # 6. 显示结果通知
+        # 8. 显示结果通知
         self._show_word_result(target, inserted)
     
     def _ensure_pandoc_integration(self) -> None:
@@ -448,23 +469,38 @@ class PasteWorkflow:
             # 2. 处理LaTeX公式
             md_text = convert_latex_delimiters(md_text)
 
-            # 3. 生成输出路径
+            # 3. 检测文件行数，如果较大则提示用户转换已开始
+            line_count = md_text.count('\n') + 1
+            if line_count >= 100:
+                self.notification_manager.notify(
+                    "PasteMD",
+                    t("workflow.markdown.conversion_started", lines=line_count),
+                    ok=True
+                )
+
+            # 4. 生成输出路径
             output_path = generate_output_path(
                 keep_file=True,  # 生成文件并打开时，默认保留文件
                 save_dir=config.get("save_dir", ""),
                 md_text=md_text
             )
 
-            # 3. 转换为DOCX字节流
+            # 5. 转换为DOCX字节流
             self._ensure_pandoc_integration()
+            if self.pandoc_integration is None:
+                # 已经在 _ensure_pandoc_integration 中显示了错误通知
+                return
+            
             docx_bytes = self.pandoc_integration.convert_to_docx_bytes(
                 md_text=md_text,
                 reference_docx=config.get("reference_docx"),
                 Keep_original_formula=config.get("Keep_original_formula", False),
-                enable_latex_replacements=config.get("enable_latex_replacements", True)
+                enable_latex_replacements=config.get("enable_latex_replacements", True),
+                custom_filters=config.get("pandoc_filters", []),
+                cwd=config.get("save_dir"),
             )
 
-            # 4. 在内存中处理 DOCX 样式
+            # 6. 在内存中处理 DOCX 样式
             if config.get("md_disable_first_para_indent", True):
                 docx_bytes = DocxProcessor.apply_custom_processing(
                     docx_bytes,
@@ -472,12 +508,12 @@ class PasteWorkflow:
                     target_style="Body Text"
                 )
 
-            # 5. 写入文件
+            # 7. 写入文件
             with open(output_path, "wb") as f:
                 f.write(docx_bytes)
             log(f"Generated DOCX: {output_path}")
 
-            # 6. 用默认应用打开
+            # 8. 用默认应用打开
             if AppLauncher.awaken_and_open_document(output_path):
                 self.notification_manager.notify(
                     "PasteMD",
@@ -513,11 +549,17 @@ class PasteWorkflow:
             log(f"Retrieved HTML from clipboard for auto-open, length: {len(html_text)}")
 
             self._ensure_pandoc_integration()
+            if self.pandoc_integration is None:
+                # 已经在 _ensure_pandoc_integration 中显示了错误通知
+                return
+            
             docx_bytes = self.pandoc_integration.convert_html_to_docx_bytes(
                 html_text=html_text,
                 reference_docx=config.get("reference_docx"),
                 Keep_original_formula=config.get("Keep_original_formula", False),
-                enable_latex_replacements=config.get("enable_latex_replacements", True)
+                enable_latex_replacements=config.get("enable_latex_replacements", True),
+                custom_filters=config.get("pandoc_filters", []),
+                cwd=config.get("save_dir"),
             )
 
             if config.get("html_disable_first_para_indent", True):

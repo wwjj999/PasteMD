@@ -134,7 +134,8 @@ The first launch creates a `config.json` file. Edit it directly, then use the tr
   },
   "move_cursor_to_end": true,
   "Keep_original_formula": false,
-  "language": "zh"
+  "language": "zh",
+  "pandoc_filters": []
 }
 ```
 
@@ -155,6 +156,104 @@ Key fields:
 - `move_cursor_to_end` — move the caret to the end of the inserted result.
 - `Keep_original_formula` — keep original math formulas (in LaTeX code form).
 - `language` — UI language, `en` or `zh`.
+- **`pandoc_filters`** — **✨ New feature** - Custom Pandoc Filter list. Add `.lua` scripts or executable file paths; filters execute in list order. Extends Pandoc conversion with custom format processing, special syntax transformation, etc. Default: empty list. Example: `["%APPDATA%\\npm\\mermaid-filter.cmd"]` for Mermaid diagram support.
+
+---
+
+## 🔧 Advanced: Custom Pandoc Filters
+
+### What are Pandoc Filters?
+
+Pandoc Filters are plugin programs that process document content during conversion. PasteMD supports configuring multiple filters that execute sequentially to extend functionality.
+
+### Use Case Example: Mermaid Diagram Support
+
+To use Mermaid diagrams in Markdown and convert them properly to Word, you can use [mermaid-filter](https://github.com/raghur/mermaid-filter).
+
+**1. Install mermaid-filter**
+
+```bash
+npm install --global mermaid-filter
+```
+
+*Prerequisite: [Node.js](https://nodejs.org/) must be installed*
+
+<details>
+<summary>⚠️ <b>Troubleshooting: Chrome Download Failure</b></summary>
+
+Installing mermaid-filter requires downloading Chromium browser. If automatic download fails, you can download it manually:
+
+**Step 1: Find Required Chromium Version**
+
+Check the file: `%APPDATA%\npm\node_modules\mermaid-filter\node_modules\puppeteer-core\lib\cjs\puppeteer\revisions.d.ts`
+
+Find content like:
+```typescript
+chromium: "1108766";
+```
+
+Note down this version number (e.g., `1108766`).
+
+**Step 2: Download Chromium**
+
+Based on the version number from Step 1, download the corresponding Chromium:
+
+```
+https://storage.googleapis.com/chromium-browser-snapshots/Win_x64/1108766/chrome-win.zip
+```
+
+(Replace `1108766` in the URL with your version number)
+
+**Step 3: Extract to Designated Directory**
+
+Extract the downloaded `chrome-win.zip` to:
+
+```
+%USERPROFILE%\.cache\puppeteer\chrome\win64-1108766\chrome-win
+```
+
+(Replace `1108766` in the path with your version number)
+
+After extraction, `chrome.exe` should be located at:  
+`%USERPROFILE%\.cache\puppeteer\chrome\win64-1108766\chrome-win\chrome.exe`
+
+</details>
+
+**2. Configure in PasteMD**
+
+Option 1: Via Settings UI
+- Open PasteMD Settings → Conversion Tab → Pandoc Filters
+- Click "Add..." button
+- Select filter file: `%APPDATA%\npm\mermaid-filter.cmd`
+- Save settings
+
+Option 2: Edit config file
+```json
+{
+  "pandoc_filters": [
+    "%APPDATA%\\npm\\mermaid-filter.cmd"
+  ]
+}
+```
+
+**3. Test It Out**
+
+Copy the following Markdown and convert with PasteMD:
+
+~~~markdown
+```mermaid
+graph LR
+    A[Start] --> B[Process]
+    B --> C[End]
+```
+~~~
+
+The Mermaid diagram will be rendered as an image and inserted into Word.
+
+### More Filter Resources
+
+- [Official Pandoc Filters List](https://github.com/jgm/pandoc/wiki/Pandoc-Filters)
+- [Lua Filters Documentation](https://pandoc.org/lua-filters.html)
 
 ---
 
