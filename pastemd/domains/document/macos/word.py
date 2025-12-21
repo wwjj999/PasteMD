@@ -2,39 +2,39 @@
 
 import subprocess
 import os
-import tempfile
 from ..base import BaseDocumentPlacer
 from ....core.types import PlacementResult
 from ....utils.logging import log
 from ....i18n import t
+from ....config.paths import get_user_data_dir
 
 
 class WordPlacer(BaseDocumentPlacer):
     """macOS Word 内容落地器"""
     
+    def __init__(self):
+        """初始化并创建固定的临时文件路径"""
+        super().__init__()
+        # 使用固定的临时文件路径，避免每次都需要授权
+        temp_dir = os.path.join(get_user_data_dir(), "temp")
+        os.makedirs(temp_dir, exist_ok=True)
+        self._fixed_temp_path = os.path.join(temp_dir, "pastemd_word_insert.docx")
+        log(f"Word 临时文件路径: {self._fixed_temp_path}")
+    
     def place(self, docx_bytes: bytes, config: dict) -> PlacementResult:
         """通过 AppleScript 插入,失败不降级"""
         try:
-            # 使用标准库创建临时文件
-            fd, temp_path = tempfile.mkstemp(suffix=".docx")
-            try:
-                os.write(fd, docx_bytes)
-                os.close(fd)
-                
-                move_cursor_to_end = config.get("move_cursor_to_end", True)
-                success = self._applescript_insert(temp_path, move_cursor_to_end)
-                
-                if success:
-                    return PlacementResult(success=True, method="applescript")
-                else:
-                    raise Exception(t("placer.macos_word.applescript_failed"))
-            finally:
-                # 清理临时文件
-                try:
-                    if os.path.exists(temp_path):
-                        os.remove(temp_path)
-                except Exception as cleanup_err:
-                    log(f"临时文件清理失败: {cleanup_err}")
+            # 使用固定路径写入临时文件（覆盖之前的）
+            with open(self._fixed_temp_path, 'wb') as f:
+                f.write(docx_bytes)
+            
+            move_cursor_to_end = config.get("move_cursor_to_end", True)
+            success = self._applescript_insert(self._fixed_temp_path, move_cursor_to_end)
+            
+            if success:
+                return PlacementResult(success=True, method="applescript")
+            else:
+                raise Exception(t("placer.macos_word.applescript_failed"))
         
         except Exception as e:
             log(f"Word AppleScript 插入失败: {e}")
@@ -66,18 +66,22 @@ class WordPlacer(BaseDocumentPlacer):
             # 光标移动到文档末尾再插入
             script = f'''
             tell application "Microsoft Word"
+                activate
                 if (count of documents) is 0 then
                     make new document
                 end if
                 
                 tell active document
                     -- 创建一个指向文档末尾的 range
-                    set myRange to create range start (count of characters of content) end (count of characters of content)
+                    set docEnd to count of characters of content
+                    set myRange to create range start docEnd end docEnd
                     -- 在末尾插入文件
                     insert file at myRange file name "{posix_path}"
-                    -- 将选区移动到插入内容的末尾
-                    select myRange
-                    collapse selection direction collapse end
+                    -- 尝试将光标移动到插入内容的末尾（失败不应影响插入结果）
+                    try
+                        set insertEnd to end of myRange
+                        select (create range start insertEnd end insertEnd)
+                    end try
                 end tell
             end tell
             '''
@@ -85,13 +89,16 @@ class WordPlacer(BaseDocumentPlacer):
             # 在当前光标位置插入
             script = f'''
             tell application "Microsoft Word"
+                activate
                 if (count of documents) is 0 then
                     make new document
                 end if
                 
                 tell active document
-                    -- 在当前选区位置插入
-                    insert file at selection file name "{posix_path}"
+                    -- 在当前光标位置插入
+                    set curSel to selection
+                    set curRange to text object of curSel
+                    insert file at curRange file name "{posix_path}"
                 end tell
             end tell
             '''
