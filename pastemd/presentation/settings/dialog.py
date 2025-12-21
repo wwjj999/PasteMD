@@ -10,6 +10,7 @@ from typing import Optional, Callable, Dict, Any
 from ...config.paths import get_app_icon_path
 from ...utils.logging import log
 from ...utils.dpi import get_dpi_scale
+from ...utils.system_detect import is_windows
 from ...i18n import t, iter_languages, get_language_label, get_no_app_action_map
 from ...core.state import app_state
 from ...config.loader import ConfigLoader
@@ -47,19 +48,35 @@ class SettingsDialog:
         self.root.attributes("-topmost", False)
         # 确保有最小化按钮
         self.root.resizable(True, True)
-        self.root.attributes("-toolwindow", False)
-        # 设置图标
-        try:
-            icon_path = get_app_icon_path()
-            if os.path.exists(icon_path):
-                self.root.iconbitmap(icon_path)
-        except Exception as e:
-            log(f"Failed to set settings dialog icon: {e}")
         
-        # 适配高分屏
+        # Windows 特有属性
+        if is_windows():
+            self.root.attributes("-toolwindow", False)
+            # 设置图标
+            try:
+                icon_path = get_app_icon_path()
+                if os.path.exists(icon_path):
+                    self.root.iconbitmap(icon_path)
+            except Exception as e:
+                log(f"Failed to set settings dialog icon: {e}")
+        
+        # 适配高分屏和屏幕尺寸
         scale = get_dpi_scale()
-        width = int(600 * scale)
-        height = int(500 * scale)
+        
+        # 在 macOS 上根据屏幕大小自适应
+        if not is_windows():
+            # 获取屏幕尺寸
+            screen_width = self.root.winfo_screenwidth()
+            screen_height = self.root.winfo_screenheight()
+            
+            # 窗口大小设置为屏幕的 50%，但不超过 700x600，不小于 500x450
+            width = max(500, min(700, int(screen_width * 0.5)))
+            height = max(450, min(600, int(screen_height * 0.5)))
+        else:
+            # Windows 保持原来的固定大小
+            width = int(600 * scale)
+            height = int(500 * scale)
+        
         self.root.geometry(f"{width}x{height}")
         
         # 设置关闭窗口时的处理
@@ -105,20 +122,7 @@ class SettingsDialog:
         
     def _create_widgets(self):
         """创建UI组件"""
-        # 创建 Notebook (选项卡容器)
-        self.notebook = ttk.Notebook(self.root)
-        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        # 创建选项卡
-        self._create_general_tab()
-        self._create_conversion_tab()
-        self._create_advanced_tab()
-        self._create_experimental_tab()
-        
-        # 避免首次打开时就选中首个输入框
-        self.root.after_idle(self._clear_initial_selection)
-        
-        # 底部按钮栏
+        # 底部按钮栏（先创建，确保不被覆盖）
         button_frame = ttk.Frame(self.root, padding="10")
         button_frame.pack(fill=tk.X, side=tk.BOTTOM)
         
@@ -137,6 +141,19 @@ class SettingsDialog:
             width=10
         )
         save_btn.pack(side=tk.RIGHT, padx=5)
+        
+        # 创建 Notebook (选项卡容器)
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=(10, 5))
+        
+        # 创建选项卡
+        self._create_general_tab()
+        self._create_conversion_tab()
+        self._create_advanced_tab()
+        self._create_experimental_tab()
+        
+        # 避免首次打开时就选中首个输入框
+        self.root.after_idle(self._clear_initial_selection)
 
     def _create_general_tab(self):
         """创建常规设置选项卡"""

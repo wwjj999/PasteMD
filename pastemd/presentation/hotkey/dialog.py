@@ -10,6 +10,7 @@ from ...config.paths import get_app_icon_path
 from ...utils.logging import log
 from ...utils.hotkey_checker import HotkeyChecker
 from ...utils.dpi import get_dpi_scale
+from ...utils.system_detect import is_windows
 from ...domains.hotkey.recorder import HotkeyRecorder
 from ...i18n import t
 from ...core.state import app_state
@@ -39,21 +40,41 @@ class HotkeyDialog:
             
         self.root.title(t("hotkey.dialog.title"))
         
-        # 设置图标
-        try:
-            icon_path = get_app_icon_path()
-            if os.path.exists(icon_path):
-                self.root.iconbitmap(icon_path)
-        except Exception as e:
-            log(f"Failed to set hotkey dialog icon: {e}")
+        # 设置图标（仅 Windows）
+        if is_windows():
+            try:
+                icon_path = get_app_icon_path()
+                if os.path.exists(icon_path):
+                    self.root.iconbitmap(icon_path)
+            except Exception as e:
+                log(f"Failed to set hotkey dialog icon: {e}")
         
-        # 适配高分屏：根据 DPI 缩放窗口大小
+        # 适配高分屏和屏幕尺寸
         scale = get_dpi_scale()
-        width = int(450 * scale)
-        height = int(300 * scale)
+        
+        # 在 macOS 上根据屏幕大小自适应
+        if not is_windows():
+            # 获取屏幕尺寸
+            screen_width = self.root.winfo_screenwidth()
+            screen_height = self.root.winfo_screenheight()
+            
+            # 窗口大小设置为屏幕的合适比例，但不超过 500x350，不小于 400x250
+            width = max(400, min(500, int(screen_width * 0.35)))
+            height = max(250, min(350, int(screen_height * 0.3)))
+        else:
+            # Windows 保持原来的固定大小
+            width = int(450 * scale)
+            height = int(300 * scale)
+        
         self.root.geometry(f"{width}x{height}")
         
-        self.root.resizable(False, False)
+        # macOS 上允许调整大小，Windows 保持不可调整
+        if not is_windows():
+            self.root.resizable(True, True)
+            # 设置最小尺寸
+            self.root.minsize(400, 250)
+        else:
+            self.root.resizable(False, False)
         
         # 设置关闭窗口时的处理
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)

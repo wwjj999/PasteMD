@@ -140,42 +140,17 @@ def main() -> None:
         # 获取托盘运行器
         tray_runner = container.get_tray_runner()
         
-        # macOS 上托盘必须在主线程，Windows 上 tk 必须在主线程
+        # macOS: 托盘必须在主线程初始化（NSWindow 限制），但可以在后台运行
+        # Windows: 托盘可以在后台线程运行
         if is_macos():
-            # macOS: 托盘在主线程，UI 队列在后台处理
-            # UI 队列处理函数（在后台线程运行）
-            def process_ui_queue_background():
-                while True:
-                    try:
-                        quit_event = getattr(app_state, 'quit_event', None)
-                        if quit_event and quit_event.is_set():
-                            break
-                        
-                        # 阻塞获取任务，设置超时避免无限等待
-                        try:
-                            task = ui_queue.get(timeout=0.1)
-                            if task is None:
-                                break
-                            try:
-                                task()
-                            except Exception as e:
-                                log(f"UI task error: {e}")
-                        except queue.Empty:
-                            continue
-                    except Exception as e:
-                        log(f"UI queue processing error: {e}")
-                        break
-            
-            # 启动后台 UI 队列处理线程
-            threading.Thread(target=process_ui_queue_background, daemon=True).start()
-            
-            # 在主线程运行托盘（会阻塞）
-            tray_runner.run()
+            # 在主线程初始化托盘，然后分离运行
+            tray_runner.setup()
+            # 使用 setup_detached 后，托盘会在后台线程运行
         else:
-            # Windows: 托盘在后台线程，tk 在主线程
+            # Windows: 直接在后台线程运行
             threading.Thread(target=tray_runner.run, daemon=True).start()
 
-        # UI 队列处理函数（仅用于 Windows）
+        # UI 队列处理函数
         def process_ui_queue():
             try:
                 # 检查退出事件
@@ -217,11 +192,11 @@ def main() -> None:
             except Exception as e:
                 log(f"Error during window cleanup: {e}")
 
-        # 启动队列处理（仅用于 Windows）
-        if not is_macos():
-            root.after(100, process_ui_queue)
-            # 进入主事件循环
-            root.mainloop()
+        # 启动队列处理
+        root.after(100, process_ui_queue)
+        
+        # 进入主事件循环
+        root.mainloop()
         
     except KeyboardInterrupt:
         log("Application interrupted by user")
