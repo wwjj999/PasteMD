@@ -48,7 +48,9 @@ def _load_translations(language: str) -> Dict[str, str]:
 
     if file_name:
         try:
-            json_path = resource_path(os.path.join("pastemd", "i18n", "locales", file_name))
+            json_path = resource_path(os.path.join("i18n", "locales", file_name))
+            if not os.path.isfile(json_path):
+                json_path = os.path.join(os.path.join("pastemd", "i18n", "locales", file_name))
 
             with open(json_path, "r", encoding="utf-8") as fp:
                 loaded = json.load(fp)

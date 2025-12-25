@@ -4,7 +4,7 @@ import os
 import sys
 from typing import Dict, Any
 from .paths import resource_path
-from ..utils.system_detect import is_windows
+from ..utils.system_detect import is_macos, is_windows
 
 
 def find_pandoc() -> str:
@@ -19,6 +19,12 @@ def find_pandoc() -> str:
     """
     # 根据操作系统确定可执行文件名
     pandoc_binary = "pandoc.exe" if is_windows() else "pandoc"
+
+    if is_macos():
+        base_dir = os.path.dirname(sys.executable)
+        candidate = os.path.join(base_dir, "pandoc", "bin", pandoc_binary)
+        if os.path.exists(candidate):
+            return candidate
     
     # exe/可执行文件 同级 pandoc
     exe_dir = os.path.dirname(sys.executable)

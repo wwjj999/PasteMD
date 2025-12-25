@@ -219,7 +219,7 @@ config.json
 pastemd.log
 reference.docx
 Output/PasteMD_pandoc-Setup.exe
-third_party/pandoc-3.7.0.2-windows-x86_64.zip
+third_party/*
 third_party/pandoc/COPYING.rtf
 third_party/pandoc/COPYRIGHT.txt
 third_party/pandoc/MANUAL.html
@@ -227,6 +227,10 @@ third_party/pandoc/pandoc.exe
 Output/PasteMD-Setup.exe
 Output/
 .idea/
+.nuitka/
+pandoc/pandoc
+pandoc/pandoc.exe
+pandoc/pandoc-*
 .idea/.gitignore
 .idea/pastemd.iml
 .idea/misc.xml
