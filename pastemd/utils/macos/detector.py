@@ -143,7 +143,12 @@ def _get_frontmost_app_via_osascript() -> dict | None:
             "-e",
             'tell application "System Events" to get name of first application process whose frontmost is true'
         ]
-        name = subprocess.check_output(cmd, text=True).strip()
+        name = subprocess.check_output(
+            cmd,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        ).strip()
         if not name:
             return None
         return {"name": name, "bundle_id": "", "pid": None}
@@ -164,7 +169,12 @@ def _get_frontmost_window_title() -> str:
             "-e",
             'tell application "System Events" to get unix id of first application process whose frontmost is true'
         ]
-        pid_str = subprocess.check_output(cmd, text=True).strip()
+        pid_str = subprocess.check_output(
+            cmd,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        ).strip()
         if not pid_str:
             return ""
         
@@ -236,4 +246,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("检测测试已手动终止")
         print("\n退出检测")
-

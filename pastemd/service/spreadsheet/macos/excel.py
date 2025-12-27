@@ -366,6 +366,8 @@ end if
                 check=True,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=30,
             )
             out = (res.stdout or "").strip()

@@ -84,6 +84,8 @@ class WordPlacer(BaseDocumentPlacer):
                 check=True,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=30
             )
             log(f"AppleScript 插入成功: {docx_path} ")

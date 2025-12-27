@@ -154,6 +154,7 @@ class MacOSPermissionsTab:
                 desc=t("settings.permissions.automation.desc"),
                 checker=self._check_automation,
                 open_settings=self._open_automation_settings,
+                request_access=self._request_automation,
             ),
         ]
 
@@ -303,6 +304,8 @@ class MacOSPermissionsTab:
                 ["osascript", "-e", script],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=2,
             )
         except subprocess.TimeoutExpired:
@@ -420,6 +423,25 @@ class MacOSPermissionsTab:
 
     def _open_automation_settings(self) -> None:
         self._open_system_settings("x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")
+
+    def _request_automation(self) -> None:
+        script = 'tell application "System Events" to get name of processes'
+        try:
+            subprocess.run(
+                ["osascript", "-e", script],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=2,
+            )
+        except subprocess.TimeoutExpired:
+            self._open_automation_settings()
+        except Exception as exc:
+            log(f"Automation request failed: {exc}")
+            self._open_automation_settings()
+        else:
+            self.root.after(1200, self.refresh)
 
     def _open_system_settings(self, url: str) -> None:
         try:

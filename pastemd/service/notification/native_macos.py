@@ -42,6 +42,9 @@ class NativeMacOSNotifier:
                 ["osascript", "-e", script],
                 check=True,
                 capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=2,
             )
             
@@ -52,7 +55,7 @@ class NativeMacOSNotifier:
             log("macOS notification timeout")
             return False
         except subprocess.CalledProcessError as e:
-            log(f"macOS notification error: {e.stderr.decode() if e.stderr else str(e)}")
+            log(f"macOS notification error: {e.stderr.strip() if e.stderr else str(e)}")
             return False
         except Exception as e:
             log(f"macOS notification error: {e}")
