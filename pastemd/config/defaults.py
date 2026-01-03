@@ -57,6 +57,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "save_dir": get_default_save_dir(),
     "keep_file": False,
     "notify": True,
+    "startup_notify": True,
     "enable_excel": True,
     "excel_keep_format": True,
     "no_app_action": "open",  # 无应用检测时的动作：open=自动打开, save=仅保存, clipboard=复制到剪贴板, none=无操作
@@ -69,5 +70,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "Keep_original_formula": False,
     "enable_latex_replacements": True,
     "fix_single_dollar_block": True,
+    # Pandoc 下载远程资源（如图片）时附加的请求头（映射为 --request-header）。
+    "pandoc_request_headers": [
+        "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    ],
     "pandoc_filters": [],
 }

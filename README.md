@@ -124,7 +124,7 @@
 
 ## ⚙️配置
 
-首次运行会生成 `config.json`，可手动编辑：
+首次运行会在用户数据目录生成 `config.json`（Windows：`%APPDATA%\\PasteMD\\config.json`， MacOS: `~/Library/Application Support/PasteMD/config.json`），可手动编辑：
 
 ```json
 {
@@ -145,6 +145,9 @@
   "move_cursor_to_end": true,
   "Keep_original_formula": false,
   "language": "zh-CN",
+  "pandoc_request_headers": [
+    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  ],
   "pandoc_filters": []
 }
 ```

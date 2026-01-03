@@ -1,6 +1,6 @@
 """Document generator - centralized DOCX generation and conversion."""
 
-from typing import Optional
+from typing import Optional, List
 
 from ...integrations.pandoc import PandocIntegration
 from ...utils.docx_processor import DocxProcessor
@@ -9,6 +9,61 @@ from ...core.state import app_state
 from ...core.errors import PandocError
 from ...config.defaults import DEFAULT_CONFIG
 from ...config.loader import ConfigLoader
+
+
+_DEFAULT_PANDOC_REQUEST_HEADERS: List[str] = [
+    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+]
+
+
+def _get_pandoc_request_headers(config: dict) -> List[str]:
+    if "pandoc_request_headers" not in config:
+        return _DEFAULT_PANDOC_REQUEST_HEADERS
+
+    headers = config.get("pandoc_request_headers")
+    if headers is None:
+        return []
+    if isinstance(headers, str):
+        return [headers]
+    if isinstance(headers, list):
+        return [h.strip() for h in headers if isinstance(h, str) and h.strip()]
+    return []
+
+
+def _mask_pandoc_request_headers(headers: List[str]) -> List[str]:
+    masked: List[str] = []
+    sensitive_names = {
+        "authorization",
+        "proxy-authorization",
+        "cookie",
+        "set-cookie",
+        "x-api-key",
+        "x-auth-token",
+    }
+
+    for raw in headers:
+        if not isinstance(raw, str):
+            continue
+        raw = raw.strip()
+        if not raw:
+            continue
+
+        name, sep, value = raw.partition(":")
+        if not sep:
+            masked.append(raw[:300] + "...(truncated)" if len(raw) > 300 else raw)
+            continue
+
+        header_name = name.strip()
+        header_value = value.strip()
+        if header_name.lower() in sensitive_names:
+            masked.append(f"{header_name}: <redacted>")
+            continue
+
+        if len(header_value) > 300:
+            header_value = header_value[:300] + "...(truncated)"
+        masked.append(f"{header_name}: {header_value}")
+
+    return masked
 
 
 class DocumentGenerator:
@@ -79,12 +134,18 @@ class DocumentGenerator:
         """
         # 1. 转换为 DOCX 字节流
         self._ensure_pandoc_integration()
+        request_headers = _get_pandoc_request_headers(config)
+        if "pandoc_request_headers" in config and request_headers != _DEFAULT_PANDOC_REQUEST_HEADERS:
+            log(
+                f"pandoc_request_headers (effective): {_mask_pandoc_request_headers(request_headers)}"
+            )
         docx_bytes = self._pandoc_integration.convert_to_docx_bytes(
             md_text=md_text,
             reference_docx=config.get("reference_docx"),
             Keep_original_formula=config.get("Keep_original_formula", False),
             enable_latex_replacements=config.get("enable_latex_replacements", True),
             custom_filters=config.get("pandoc_filters", []),
+            request_headers=request_headers,
             cwd=config.get("save_dir"),
         )
         
@@ -114,12 +175,18 @@ class DocumentGenerator:
         """
         # 1. 转换为 DOCX 字节流
         self._ensure_pandoc_integration()
+        request_headers = _get_pandoc_request_headers(config)
+        if "pandoc_request_headers" in config and request_headers != _DEFAULT_PANDOC_REQUEST_HEADERS:
+            log(
+                f"pandoc_request_headers (effective): {_mask_pandoc_request_headers(request_headers)}"
+            )
         docx_bytes = self._pandoc_integration.convert_html_to_docx_bytes(
             html_text=html_text,
             reference_docx=config.get("reference_docx"),
             Keep_original_formula=config.get("Keep_original_formula", False),
             enable_latex_replacements=config.get("enable_latex_replacements", True),
             custom_filters=config.get("pandoc_filters", []),
+            request_headers=request_headers,
             cwd=config.get("save_dir"),
         )
         
@@ -164,10 +231,16 @@ class DocumentGenerator:
         将 Markdown 文本转换为 RTF 字节流（用于富文本粘贴兜底）。
         """
         self._ensure_pandoc_integration()
+        request_headers = _get_pandoc_request_headers(config)
+        if "pandoc_request_headers" in config and request_headers != _DEFAULT_PANDOC_REQUEST_HEADERS:
+            log(
+                f"pandoc_request_headers (effective): {_mask_pandoc_request_headers(request_headers)}"
+            )
         return self._pandoc_integration.convert_markdown_to_rtf_bytes(  # type: ignore[union-attr]
             md_text,
             Keep_original_formula=config.get("Keep_original_formula", True),
             enable_latex_replacements=config.get("enable_latex_replacements", True),
             custom_filters=config.get("pandoc_filters", []),
+            request_headers=request_headers,
             cwd=config.get("save_dir"),
         )

@@ -73,6 +73,10 @@ def initialize_application() -> Container:
 def show_startup_notification(notification_manager: NotificationManager) -> None:
     """显示启动通知"""
     try:
+        # 检查是否启用开机通知
+        if app_state.config.get("startup_notify", True) is False:
+            return
+        
         # 确保图标路径存在（仅用于验证）
         get_app_icon_path()
         notification_manager.notify(
