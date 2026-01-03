@@ -20,6 +20,34 @@ if not os.path.isfile(LUA_LATEX_REPLACEMENTS):
     LUA_LATEX_REPLACEMENTS = resource_path("pastemd/lua/latex-replacements.lua")
 
 
+def _log_pandoc_stderr_as_warning(stderr: Optional[bytes], *, context: str) -> None:
+    if not stderr:
+        return
+
+    msg = stderr.decode("utf-8", "ignore").strip()
+    if not msg:
+        return
+
+    max_len = 4000
+    if len(msg) > max_len:
+        msg = msg[:max_len] + "...(truncated)"
+
+    log(f"{context} (stderr): {msg}")
+
+
+def _add_request_headers(cmd: List[str], request_headers: Optional[List[str]]) -> List[str]:
+    if not request_headers:
+        return cmd
+    for header in request_headers:
+        if not isinstance(header, str):
+            continue
+        header = header.strip()
+        if not header:
+            continue
+        cmd += ["--request-header", header]
+    return cmd
+
+
 class PandocIntegration:
     """Pandoc 工具集成"""
     
@@ -206,6 +234,7 @@ class PandocIntegration:
         Keep_original_formula: bool = False,
         enable_latex_replacements: bool = True,
         custom_filters: Optional[List[str]] = None,
+        request_headers: Optional[List[str]] = None,
         cwd: Optional[str] = None,
     ) -> bytes:
         """
@@ -223,6 +252,7 @@ class PandocIntegration:
         if Keep_original_formula:
             cmd += ["--lua-filter", LUA_KEEP_ORIGINAL_FORMULA]
         cmd += self._build_filter_args(custom_filters)
+        cmd = _add_request_headers(cmd, request_headers)
 
         # 确保工作目录存在且可写
         if cwd:
@@ -253,7 +283,7 @@ class PandocIntegration:
 
         return result.stdout
 
-    def convert_to_docx_bytes(self, md_text: str, reference_docx: Optional[str] = None, Keep_original_formula: bool = False, enable_latex_replacements: bool = True, custom_filters: Optional[List[str]] = None, cwd: Optional[str] = None) -> bytes:
+    def convert_to_docx_bytes(self, md_text: str, reference_docx: Optional[str] = None, Keep_original_formula: bool = False, enable_latex_replacements: bool = True, custom_filters: Optional[List[str]] = None, request_headers: Optional[List[str]] = None, cwd: Optional[str] = None) -> bytes:
         """
         用 stdin 喂入 Markdown，直接把 DOCX 从 stdout 读到内存（无任何输入文件写盘）
         
@@ -283,6 +313,7 @@ class PandocIntegration:
         cmd += self._build_filter_args(custom_filters)
         if reference_docx:
             cmd += ["--reference-doc", reference_docx]
+        cmd = _add_request_headers(cmd, request_headers)
 
         startupinfo = None
         creationflags = 0
@@ -313,9 +344,10 @@ class PandocIntegration:
             log(f"Pandoc error: {err}")
             raise PandocError(err or "Pandoc conversion failed")
 
+        _log_pandoc_stderr_as_warning(result.stderr, context="Pandoc warning (MD->DOCX)")
         return result.stdout
 
-    def convert_html_to_docx_bytes(self, html_text: str, reference_docx: Optional[str] = None, Keep_original_formula: bool = False, enable_latex_replacements: bool = True, custom_filters: Optional[List[str]] = None, cwd: Optional[str] = None) -> bytes:
+    def convert_html_to_docx_bytes(self, html_text: str, reference_docx: Optional[str] = None, Keep_original_formula: bool = False, enable_latex_replacements: bool = True, custom_filters: Optional[List[str]] = None, request_headers: Optional[List[str]] = None, cwd: Optional[str] = None) -> bytes:
         """
         用 stdin 喂入 HTML，直接把 DOCX 从 stdout 读到内存（无任何输入文件写盘）
         
@@ -341,6 +373,7 @@ class PandocIntegration:
                     Keep_original_formula=Keep_original_formula,
                     enable_latex_replacements=enable_latex_replacements,
                     custom_filters=custom_filters,
+                    request_headers=request_headers,
                     cwd=cwd,
                 )
         
@@ -357,6 +390,7 @@ class PandocIntegration:
         cmd += self._build_filter_args(custom_filters)
         if reference_docx:
             cmd += ["--reference-doc", reference_docx]
+        cmd = _add_request_headers(cmd, request_headers)
 
         startupinfo = None
         creationflags = 0
@@ -387,4 +421,6 @@ class PandocIntegration:
             log(f"Pandoc HTML conversion error: {err}")
             raise PandocError(err or "Pandoc HTML conversion failed")
 
+        _log_pandoc_stderr_as_warning(result.stderr, context="Pandoc warning (HTML->DOCX)")
         return result.stdout
+

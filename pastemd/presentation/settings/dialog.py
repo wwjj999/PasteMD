@@ -392,6 +392,7 @@ class SettingsDialog:
         frame = ttk.Frame(self.notebook, padding=10)
         self.notebook.add(frame, text=t("settings.tab.experimental"))
         self._tab_map["experimental"] = frame
+        frame.columnconfigure(0, weight=1)
         
         self.keep_formula_var = tk.BooleanVar(value=self.current_config.get("Keep_original_formula", False))
         ttk.Checkbutton(frame, text=t("settings.conversion.keep_formula"), variable=self.keep_formula_var).grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -415,6 +416,86 @@ class SettingsDialog:
         fix_dollar_note = t("settings.conversion.fix_single_dollar_block_note")
         fix_dollar_label = ttk.Label(frame, text=fix_dollar_note, foreground="gray", font=("", 8))
         fix_dollar_label.grid(row=4, column=0, sticky=tk.W, padx=(20, 0), pady=(0, 5))
+
+        # Pandoc request headers（用于下载远程图片等资源时附加请求头）
+        self._pandoc_request_headers_example = [
+            "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        ]
+        headers_value = self.current_config.get("pandoc_request_headers")
+        if isinstance(headers_value, str):
+            initial_headers = [headers_value]
+        elif isinstance(headers_value, (list, tuple)):
+            initial_headers = [h for h in headers_value if isinstance(h, str) and h.strip()]
+        else:
+            initial_headers = []
+
+        self.pandoc_request_headers_enable_var = tk.BooleanVar(value=bool(initial_headers))
+
+        ttk.Label(
+            frame,
+            text=t("settings.conversion.pandoc_request_headers"),
+            font=("", 10, "bold"),
+        ).grid(row=5, column=0, sticky=tk.W, pady=(10, 5))
+
+        ttk.Checkbutton(
+            frame,
+            text=t("settings.conversion.pandoc_request_headers_enable"),
+            variable=self.pandoc_request_headers_enable_var,
+            command=self._toggle_pandoc_request_headers_state,
+        ).grid(row=6, column=0, sticky=tk.W, pady=2)
+
+        if not initial_headers:
+            initial_headers = self._pandoc_request_headers_example
+
+        headers_frame = ttk.Frame(frame)
+        headers_frame.grid(row=7, column=0, sticky=tk.EW, padx=(20, 0), pady=(0, 5))
+        headers_frame.columnconfigure(0, weight=1)
+
+        self.pandoc_request_headers_text = tk.Text(headers_frame, height=4, wrap="word")
+        self.pandoc_request_headers_text.grid(row=0, column=0, sticky=tk.EW)
+
+        headers_scroll = ttk.Scrollbar(
+            headers_frame, orient="vertical", command=self.pandoc_request_headers_text.yview
+        )
+        headers_scroll.grid(row=0, column=1, sticky=tk.NS)
+        self.pandoc_request_headers_text.configure(yscrollcommand=headers_scroll.set)
+
+        self._set_pandoc_request_headers_text(initial_headers)
+        self._toggle_pandoc_request_headers_state()
+
+        ttk.Label(
+            frame,
+            text=t("settings.conversion.pandoc_request_headers_note"),
+            foreground="gray",
+            font=("", 8),
+        ).grid(row=8, column=0, sticky=tk.W, padx=(20, 0), pady=(0, 5))
+
+        ttk.Button(
+            frame,
+            text=t("settings.conversion.pandoc_request_headers_fill_example"),
+            command=self._fill_pandoc_request_headers_example,
+        ).grid(row=9, column=0, sticky=tk.W, padx=(20, 0), pady=(0, 5))
+
+    def _set_pandoc_request_headers_text(self, headers: list[str]) -> None:
+        try:
+            self.pandoc_request_headers_text.configure(state=tk.NORMAL)
+            self.pandoc_request_headers_text.delete("1.0", tk.END)
+            self.pandoc_request_headers_text.insert(tk.END, "\n".join(headers))
+        except Exception as e:
+            log(f"Failed to set pandoc_request_headers text: {e}")
+
+    def _fill_pandoc_request_headers_example(self) -> None:
+        self._set_pandoc_request_headers_text(self._pandoc_request_headers_example)
+        self.pandoc_request_headers_enable_var.set(True)
+        self._toggle_pandoc_request_headers_state()
+
+    def _toggle_pandoc_request_headers_state(self) -> None:
+        if not hasattr(self, "pandoc_request_headers_text"):
+            return
+        enabled = bool(self.pandoc_request_headers_enable_var.get())
+        self.pandoc_request_headers_text.configure(
+            state=(tk.NORMAL if enabled else tk.DISABLED)
+        )
 
     def _browse_save_dir(self):
         """浏览保存目录"""
@@ -536,6 +617,15 @@ class SettingsDialog:
             new_config["Keep_original_formula"] = self.keep_formula_var.get()
             new_config["enable_latex_replacements"] = self.enable_latex_replacements_var.get()
             new_config["fix_single_dollar_block"] = self.fix_single_dollar_block_var.get()
+
+            # pandoc_request_headers（实验性功能）
+            if getattr(self, "pandoc_request_headers_enable_var", None) is not None and self.pandoc_request_headers_enable_var.get():
+                raw = self.pandoc_request_headers_text.get("1.0", tk.END).splitlines()
+                headers = [line.strip() for line in raw if isinstance(line, str) and line.strip()]
+                new_config["pandoc_request_headers"] = headers
+            else:
+                # 由于 DEFAULT_CONFIG 中默认包含该字段，不建议删除 key；用空列表表示“禁用任何 header”。
+                new_config["pandoc_request_headers"] = []
             
             new_config["enable_excel"] = self.excel_enable_var.get()
             new_config["excel_keep_format"] = self.excel_format_var.get()

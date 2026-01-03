@@ -114,7 +114,7 @@ Test description:
 
 ## Configuration
 
-The first launch creates a `config.json` file. Edit it directly, then use the tray menu item **“Reload config/hotkey”** to apply changes instantly.
+The first launch creates a `config.json` file in the user data directory (Windows: `%APPDATA%\\PasteMD\\config.json`， MacOS: `~/Library/Application Support/PasteMD/config.json`). Edit it directly, then use the tray menu item **“Reload config/hotkey”** to apply changes instantly.
 
 ```json
 {
@@ -135,6 +135,9 @@ The first launch creates a `config.json` file. Edit it directly, then use the tr
   "move_cursor_to_end": true,
   "Keep_original_formula": false,
   "language": "zh",
+  "pandoc_request_headers": [
+    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  ],
   "pandoc_filters": []
 }
 ```
@@ -156,6 +159,7 @@ Key fields:
 - `move_cursor_to_end` — move the caret to the end of the inserted result.
 - `Keep_original_formula` — keep original math formulas (in LaTeX code form).
 - `language` — UI language, `en` or `zh`.
+- `pandoc_request_headers` — request headers passed to Pandoc as `--request-header` when fetching remote resources (e.g. images). Example: `["User-Agent: ...", "Referer: https://www.oschina.net/"]`. Set to `[]` to disable request headers.
 - **`pandoc_filters`** — **✨ New feature** - Custom Pandoc Filter list. Add `.lua` scripts or executable file paths; filters execute in list order. Extends Pandoc conversion with custom format processing, special syntax transformation, etc. Default: empty list. Example: `["%APPDATA%\\npm\\mermaid-filter.cmd"]` for Mermaid diagram support.
 
 ---

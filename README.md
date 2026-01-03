@@ -124,7 +124,7 @@
 
 ## ⚙️配置
 
-首次运行会生成 `config.json`，可手动编辑：
+首次运行会在用户数据目录生成 `config.json`（Windows：`%APPDATA%\\PasteMD\\config.json`， MacOS: `~/Library/Application Support/PasteMD/config.json`），可手动编辑：
 
 ```json
 {
@@ -145,6 +145,9 @@
   "move_cursor_to_end": true,
   "Keep_original_formula": false,
   "language": "zh",
+  "pandoc_request_headers": [
+    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  ],
   "pandoc_filters": []
 }
 ```
@@ -167,6 +170,7 @@
 * **`move_cursor_to_end`**：**✨ 新功能** - 插入内容后是否将光标移动到插入内容的末尾（默认 true）。
 * **`Keep_original_formula`**：**✨ 新功能** - 是否保留原始数学公式（LaTeX 代码形式）。
 * `language`：界面语言，`zh` 中文，`en` 英文。
+* **`pandoc_request_headers`**：Pandoc 下载远程资源时附加的请求头列表，会映射为 Pandoc 参数 `--request-header`。示例：`["User-Agent: ...", "Referer: https://www.oschina.net/"]`；如需禁用默认 UA，可显式设置为空列表 `[]`。
 * **`pandoc_filters`**：**✨ 新功能** - 自定义 Pandoc Filter 列表。可添加 `.lua` 脚本或可执行文件路径，Filter 将按照列表顺序依次执行。用于扩展 Pandoc 转换功能，如自定义格式处理、特殊语法转换等。默认为空列表。示例：`["%APPDATA%\\npm\\mermaid-filter.cmd"]` 可实现 Mermaid 图表支持。
 
 修改后可在托盘菜单选择 **“重载配置/热键”** 立即生效。
