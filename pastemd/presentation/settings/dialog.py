@@ -261,7 +261,7 @@ class SettingsDialog:
             self.move_cursor_var = tk.BooleanVar(value=self.current_config.get("move_cursor_to_end", True))
             ttk.Checkbutton(frame, text=t("settings.general.move_cursor"), variable=self.move_cursor_var).grid(row=6, column=0, columnspan=3, sticky=tk.W, pady=5)
             
-        hotkey_row = 5 if not is_windows() else 7
+        hotkey_row = 6 if not is_windows() else 7
         language_row = hotkey_row + 1
 
         # 热键（从设置页直接打开热键录制）
