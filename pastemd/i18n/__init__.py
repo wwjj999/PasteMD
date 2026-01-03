@@ -146,6 +146,11 @@ def get_language_label(language: str) -> str:
     _load_translations(language)
     if language in _language_metadata:
         return _language_metadata[language].get("name", language)
+    # 兼容前版本
+    if language == 'en':
+        return 'English'
+    if language == 'zh':
+        return '简体中文'
     return language
 
 
