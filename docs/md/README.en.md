@@ -19,8 +19,10 @@
 
 <p align="center">
   <a href="README.en.md">English</a>
-  | 
+  |
   <a href="../../README.md">简体中文</a> 
+  |
+  <a href="README.ja.md">日本語</a>
 </p>
 
 > When writing papers or reports, do formulas copied from AI tools (like ChatGPT or DeepSeek) turn into garbled text in Word? Do Markdown tables fail to paste correctly into Excel? **PasteMD was built specifically to solve these problems.**
@@ -158,7 +160,7 @@ Key fields:
   - `strikethrough_to_del` — convert strikethrough ~~ to `<del>` tags for proper rendering.
 - `move_cursor_to_end` — move the caret to the end of the inserted result.
 - `Keep_original_formula` — keep original math formulas (in LaTeX code form).
-- `language` — UI language, `en-US` or `zh-CN`.
+- `language` — UI language: `en-US`, `zh-CN`, or `ja-JP`.
 - `pandoc_request_headers` — request headers passed to Pandoc as `--request-header` when fetching remote resources (e.g. images). Example: `["User-Agent: ...", "Referer: https://www.oschina.net/"]`. Set to `[]` to disable request headers.
 - **`pandoc_filters`** — **✨ New feature** - Custom Pandoc Filter list. Add `.lua` scripts or executable file paths; filters execute in list order. Extends Pandoc conversion with custom format processing, special syntax transformation, etc. Default: empty list. Example: `["%APPDATA%\\npm\\mermaid-filter.cmd"]` for Mermaid diagram support.
 
