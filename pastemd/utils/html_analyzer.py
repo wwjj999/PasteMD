@@ -10,6 +10,9 @@ except Exception:  # pragma: no cover - BeautifulSoup is in requirements
     BeautifulSoup = None  # type: ignore
     FeatureNotFound = None  # type: ignore
 
+from .logging import log
+from .clipboard import get_clipboard_text
+from .markdown_utils import is_markdown
 
 # HTML 标签中能提供语义结构的元素集合
 SEMANTIC_TAGS: Set[str] = {
@@ -121,6 +124,22 @@ def _markdown_hint_score(text: str) -> int:
     return score
 
 
+def _has_yuanbao_formula_tags(soup) -> bool:
+    """检测HTML中是否包含元宝的公式标签"""
+    
+    # 检查是否存在元宝的特征class
+    yuanbao_classes = ["ybc-markdown-katex", "ybc-pre-component", "ybc-p", "ybc-ul-component", "ybc-ol-component"]
+    
+    for class_name in yuanbao_classes:
+        # 查找包含该class的标签
+        elements = soup.find_all(class_=class_name)
+        if elements:
+            return True
+    
+    return False
+
+
+
 def is_plain_html_fragment(html: str) -> bool:
     """
     判断 HTML 片段是否只是带壳的 Markdown / 纯文本。
@@ -129,6 +148,9 @@ def is_plain_html_fragment(html: str) -> bool:
     如果直接走 Pandoc HTML 流程会把 Markdown 符号原样贴进 Word。
     这里通过结构标签数量、内联标签检测、以及 Markdown 语法特征
     来辅助判断是否应该退回 Markdown 流程。
+    
+    特别地，对于元宝等应用，如果HTML中有公式标签但携带不可解析的HTML，
+    而剪切板文本中有标准的LaTeX公式标记，则优先使用文本流程。
     """
     if not html or not html.strip():
         return True
@@ -145,6 +167,17 @@ def is_plain_html_fragment(html: str) -> bool:
             soup = BeautifulSoup(html, "html.parser")
         else:
             soup = BeautifulSoup(html, "html.parser")
+    # 检测元宝公式：如果HTML中有元宝公式标签，且文本中有LaTeX公式，则使用文本
+    if "ybc" in html:
+        if _has_yuanbao_formula_tags(soup):
+            try:
+                clipboard_text = get_clipboard_text()
+                if clipboard_text and is_markdown(clipboard_text):
+                    log("检测到元宝公式标签且剪切板文本包含LaTeX公式，使用文本流程")
+                    return True
+            except Exception as e:
+                log(f"检测元宝公式时获取剪切板文本失败: {e}")
+
     semantic_count = _count_semantic_tags(soup)
 
     if semantic_count > 0:
