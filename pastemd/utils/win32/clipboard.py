@@ -4,6 +4,7 @@ import os
 import re
 import sys
 import time
+import contextlib
 import pyperclip
 import ctypes
 from ctypes import wintypes
@@ -13,6 +14,110 @@ from ...core.state import app_state
 from ..clipboard_file_utils import read_file_with_encoding, filter_markdown_files, read_markdown_files
 from ...utils.logging import log
 from ...core.constants import CLIPBOARD_HTML_WAIT_MS, CLIPBOARD_POLL_INTERVAL_MS
+
+
+def _snapshot_clipboard() -> dict[int, bytes]:
+    """
+    Best-effort snapshot of all clipboard formats.
+    
+    Returns a dict of {format_id: data_bytes}.
+    """
+    snapshot: dict[int, bytes] = {}
+    try:
+        wc.OpenClipboard(None)
+        try:
+            # 枚举所有可用的格式
+            fmt = 0
+            while True:
+                fmt = wc.EnumClipboardFormats(fmt)
+                if fmt == 0:
+                    break
+                try:
+                    data = wc.GetClipboardData(fmt)
+                    if data is not None:
+                        # 转换为 bytes
+                        if isinstance(data, bytes):
+                            snapshot[fmt] = data
+                        elif isinstance(data, str):
+                            snapshot[fmt] = data.encode('utf-16le')
+                        elif isinstance(data, (list, tuple)):
+                            # CF_HDROP 文件列表
+                            snapshot[fmt] = "\0".join(data).encode('utf-16le') + b'\0\0'
+                        else:
+                            # 尝试转换其他类型
+                            try:
+                                snapshot[fmt] = bytes(data)
+                            except Exception:
+                                pass
+                except Exception as e:
+                    log(f"Failed to snapshot clipboard format {fmt}: {e}")
+                    continue
+        finally:
+            wc.CloseClipboard()
+    except Exception as e:
+        log(f"Failed to snapshot clipboard: {e}")
+    
+    return snapshot
+
+
+def _restore_clipboard(snapshot: dict[int, bytes]) -> None:
+    """
+    Restore clipboard from snapshot.
+    """
+    try:
+        wc.OpenClipboard(None)
+        try:
+            wc.EmptyClipboard()
+            
+            for fmt, data in snapshot.items():
+                try:
+                    # 特殊处理某些格式
+                    if fmt == wc.CF_UNICODETEXT:
+                        # Unicode 文本需要解码后设置
+                        text = data.decode('utf-16le', errors='ignore').rstrip('\0')
+                        wc.SetClipboardData(fmt, text)
+                    elif fmt == wc.CF_TEXT:
+                        # ANSI 文本
+                        text = data.decode('cp1252', errors='ignore').rstrip('\0')
+                        wc.SetClipboardData(fmt, text)
+                    elif fmt == wc.CF_HDROP:
+                        # 文件列表，需要重建 DROPFILES 结构
+                        files_str = data.decode('utf-16le', errors='ignore').rstrip('\0')
+                        files = [f for f in files_str.split('\0') if f]
+                        if files:
+                            hdrop_data = _build_hdrop_data(files)
+                            wc.SetClipboardData(fmt, hdrop_data)
+                    else:
+                        # 其他格式直接设置原始字节
+                        wc.SetClipboardData(fmt, data)
+                except Exception as e:
+                    log(f"Failed to restore clipboard format {fmt}: {e}")
+                    continue
+        finally:
+            wc.CloseClipboard()
+    except Exception as e:
+        log(f"Failed to restore clipboard: {e}")
+
+
+@contextlib.contextmanager
+def preserve_clipboard(*, restore_delay_s: float = 0.25):
+    """
+    Preserve the user's clipboard across a temporary clipboard write.
+    
+    Useful for apps that require clipboard-based rich-text paste.
+    """
+    snapshot: dict[int, bytes] | None = None
+    try:
+        snapshot = _snapshot_clipboard()
+        yield
+    finally:
+        if restore_delay_s > 0:
+            time.sleep(restore_delay_s)
+        if snapshot is not None:
+            try:
+                _restore_clipboard(snapshot)
+            except Exception as exc:
+                log(f"Failed to restore clipboard: {exc}")
 
 
 def _build_cf_html(html: str) -> bytes:

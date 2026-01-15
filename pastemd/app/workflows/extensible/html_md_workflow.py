@@ -13,6 +13,7 @@ from ....utils.clipboard import (
     is_clipboard_empty,
     set_clipboard_rich_text,
     simulate_paste,
+    preserve_clipboard,
 )
 from ....utils.html_analyzer import is_plain_html_fragment
 from ....config.paths import resource_path
@@ -61,11 +62,12 @@ class HtmlWorkflow(ExtensibleWorkflow):
                 }
             )
             # 5. 设置剪贴板（HTML + 纯文本 Markdown）
-            set_clipboard_rich_text(html=html_text, text=md_text)
-            self._log("Set clipboard with HTML and plain text")
-            
-            # 6. 模拟粘贴
-            simulate_paste()
+            with preserve_clipboard():
+                set_clipboard_rich_text(html=html_text, text=md_text)
+                self._log("Set clipboard with HTML and plain text")
+                
+                # 6. 模拟粘贴
+                simulate_paste()
             
             # 7. 通知成功
             self._notify_success(t("workflow.html_md.paste_success"))

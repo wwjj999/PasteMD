@@ -22,6 +22,7 @@ if sys.platform == "darwin":
         get_clipboard_files,
         get_markdown_files_from_clipboard,
         read_markdown_files_from_clipboard,
+        preserve_clipboard,
     )
     from .macos.keystroke import simulate_paste
     # read_file_with_encoding 从共享模块导入
@@ -39,6 +40,7 @@ elif sys.platform == "win32":
         get_clipboard_files,
         get_markdown_files_from_clipboard,
         read_markdown_files_from_clipboard,
+        preserve_clipboard,
     )
     from .win32.keystroke import simulate_paste
     # read_file_with_encoding 从共享模块导入
@@ -138,4 +140,5 @@ if sys.platform in ("win32", "darwin"):
         "get_markdown_files_from_clipboard",
         "read_markdown_files_from_clipboard",
         "read_file_with_encoding",
+        "preserve_clipboard",
     ])

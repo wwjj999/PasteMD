@@ -9,6 +9,7 @@ from ....utils.clipboard import (
     is_clipboard_empty,
     set_clipboard_text,
     simulate_paste,
+    preserve_clipboard,
 )
 from ....utils.html_analyzer import is_plain_html_fragment
 from ....i18n import t
@@ -48,11 +49,12 @@ class MdWorkflow(ExtensibleWorkflow):
             md_text = self.markdown_preprocessor.process(md_text, self.config)
             
             # 4. 设置剪贴板为纯文本 Markdown
-            set_clipboard_text(md_text)
-            self._log("Set clipboard with plain text Markdown")
-            
-            # 5. 模拟粘贴
-            simulate_paste()
+            with preserve_clipboard():
+                set_clipboard_text(md_text)
+                self._log("Set clipboard with plain text Markdown")
+                
+                # 5. 模拟粘贴
+                simulate_paste()
             
             # 6. 通知成功
             self._notify_success(t("workflow.md.paste_success"))

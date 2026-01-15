@@ -9,6 +9,7 @@ from ....utils.clipboard import (
     is_clipboard_empty,
     set_clipboard_text,
     simulate_paste,
+    preserve_clipboard,
 )
 from ....utils.html_analyzer import is_plain_html_fragment
 from ....i18n import t
@@ -53,11 +54,12 @@ class LatexWorkflow(ExtensibleWorkflow):
             )
             
             # 5. 设置剪贴板为纯文本 LaTeX
-            set_clipboard_text(latex_text)
-            self._log("Set clipboard with LaTeX text")
-            
-            # 6. 模拟粘贴
-            simulate_paste()
+            with preserve_clipboard():
+                set_clipboard_text(latex_text)
+                self._log("Set clipboard with LaTeX text")
+                
+                # 6. 模拟粘贴
+                simulate_paste()
             
             # 7. 通知成功
             self._notify_success(t("workflow.latex.paste_success"))
