@@ -37,15 +37,13 @@ class MdWorkflow(ExtensibleWorkflow):
             
             # 2. 转换为 Markdown（如果是 HTML）
             if content_type == "html":
-                print("Converting HTML to Markdown...")
-                print("HTML Content:\n", content)
+                content = self.html_preprocessor.process(content, self.config)
                 md_text = self.doc_generator.convert_html_to_markdown_text(
                     content, self.config
                 )
             else:
                 md_text = content
             
-            print("Markdown Text:\n", md_text)
             # 3. 预处理 Markdown
             md_text = self.markdown_preprocessor.process(md_text, self.config)
             

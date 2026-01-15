@@ -456,9 +456,19 @@ def clean_html_for_wps(html: str) -> str:
     return str(soup)
 
 
+def _remove_col_tags(soup) -> None:
+    """
+    移除 HTML 中的 <col> 标签。
+    Pandoc 处理带有 span 属性的 <col> 标签时可能会导致表格转换错误。
+    """
+    for col in soup.find_all("col"):
+        col.decompose()
+
+
 def protect_brackets(html: str) -> str:
     """
-    保护 HTML 中的任务列表，$$等数学公式，避免被 Pandoc 转义和误识别。
+    保护 HTML 转 md中的任务列表，$$等数学公式，避免被 Pandoc 转义和误识别。
+    同时移除 <col> 标签以修复 Excel 表格转换问题。
     
     将 [x] 和 [ ] 替换为特殊标记：
     - [x] -> {{TASK_CHECKED}}
@@ -473,6 +483,7 @@ def protect_brackets(html: str) -> str:
         处理后的 HTML 字符串
     """
     soup = BeautifulSoup(html, "html.parser")
+    _remove_col_tags(soup)
     _protect_task_list_brackets(soup)
     return str(soup)
 
