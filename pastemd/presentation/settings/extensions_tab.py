@@ -22,11 +22,13 @@ class WorkflowSection:
         enable_key: str,
         config: dict,
         has_keep_latex: bool = False,
+        check_app_conflict = None,
     ):
         self.parent = parent
         self.workflow_key = workflow_key
         self.config = config
         self.has_keep_latex = has_keep_latex
+        self.check_app_conflict = check_app_conflict
         
         # 存储应用数据 {iid: {"name": ..., "path": ..., "window_patterns": [...]}}
         self.app_data: dict[str, dict] = {}
@@ -293,6 +295,7 @@ class WorkflowSection:
             )
             return
         
+        # 检查当前工作流中是否已存在
         existing = [self.app_data[iid]["name"] for iid in self.treeview.get_children()]
         if app_name in existing:
             messagebox.showinfo(
@@ -300,6 +303,16 @@ class WorkflowSection:
                 t("settings.extensions.app_exists", app=app_name)
             )
             return
+        
+        # 检查跨工作流冲突
+        if self.check_app_conflict:
+            conflict_workflow = self.check_app_conflict(app_name, self.workflow_key)
+            if conflict_workflow:
+                messagebox.showerror(
+                    t("settings.title.error"),
+                    t("settings.extensions.app_conflict_error", app=app_name, workflow=conflict_workflow)
+                )
+                return
         
         iid = self.treeview.insert("", tk.END, values=(app_name, ""), image=icon or "")
         self.app_data[iid] = {"name": app_name, "path": app_path, "window_patterns": []}
@@ -440,6 +453,7 @@ class ExtensionsTab:
             enable_key="settings.extensions.html_enable",
             config=ext_config.get("html", {}),
             has_keep_latex=True,
+            check_app_conflict=self._check_app_conflict,
         )
         self.inner_notebook.add(
             self.html_section.frame, 
@@ -453,6 +467,7 @@ class ExtensionsTab:
             enable_key="settings.extensions.md_enable",
             config=ext_config.get("md", {}),
             has_keep_latex=False,
+            check_app_conflict=self._check_app_conflict,
         )
         self.inner_notebook.add(
             self.md_section.frame, 
@@ -466,11 +481,15 @@ class ExtensionsTab:
             enable_key="settings.extensions.latex_enable",
             config=ext_config.get("latex", {}),
             has_keep_latex=False,
+            check_app_conflict=self._check_app_conflict,
         )
         self.inner_notebook.add(
             self.latex_section.frame, 
             text=t("settings.extensions.latex_title")
         )
+        
+        # 检查配置中的跨工作流应用冲突
+        self.frame.after(100, self._check_config_conflicts)
         
         # 说明文字
         ttk.Label(
@@ -479,6 +498,71 @@ class ExtensionsTab:
             foreground="gray",
             wraplength=400
         ).pack(pady=(10, 0), anchor=tk.W)
+    
+    def _check_app_conflict(self, app_name: str, current_workflow: str) -> Optional[str]:
+        """检查应用是否在其他工作流中存在
+        
+        Args:
+            app_name: 应用名称
+            current_workflow: 当前工作流键名
+            
+        Returns:
+            如果存在冲突，返回冲突的工作流名称；否则返回 None
+        """
+        workflow_sections = {
+            "html": (self.html_section, t("settings.extensions.html_title")),
+            "md": (self.md_section, t("settings.extensions.md_title")),
+            "latex": (self.latex_section, t("settings.extensions.latex_title")),
+        }
+        
+        for workflow_key, (section, workflow_name) in workflow_sections.items():
+            if workflow_key == current_workflow:
+                continue
+            
+            # 检查该工作流中是否有此应用
+            existing_apps = [section.app_data[iid]["name"] 
+                           for iid in section.treeview.get_children()]
+            if app_name in existing_apps:
+                return workflow_name
+        
+        return None
+    
+    def _check_config_conflicts(self):
+        """检查配置中的跨工作流应用冲突并弹窗提醒"""
+        workflow_sections = {
+            "html": (self.html_section, t("settings.extensions.html_title")),
+            "md": (self.md_section, t("settings.extensions.md_title")),
+            "latex": (self.latex_section, t("settings.extensions.latex_title")),
+        }
+        
+        # 收集所有应用及其所在工作流
+        app_workflows = {}  # {app_name: [workflow_name1, workflow_name2, ...]}
+        
+        for workflow_key, (section, workflow_name) in workflow_sections.items():
+            apps = [section.app_data[iid]["name"] 
+                   for iid in section.treeview.get_children()]
+            for app in apps:
+                if app not in app_workflows:
+                    app_workflows[app] = []
+                app_workflows[app].append(workflow_name)
+        
+        # 找出存在冲突的应用
+        conflicts = {app: workflows 
+                    for app, workflows in app_workflows.items() 
+                    if len(workflows) > 1}
+        
+        if conflicts:
+            # 构建冲突提示消息
+            conflict_lines = []
+            for app, workflows in conflicts.items():
+                workflow_list = "、".join(workflows)
+                conflict_lines.append(f"• {app}: {workflow_list}")
+            
+            conflict_msg = "\n".join(conflict_lines)
+            messagebox.showwarning(
+                t("settings.title.warning"),
+                t("settings.extensions.config_conflict_warning", conflicts=conflict_msg)
+            )
     
     def get_config(self) -> dict:
         """获取当前配置"""

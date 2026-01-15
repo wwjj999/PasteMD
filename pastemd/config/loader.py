@@ -92,6 +92,39 @@ class ConfigLoader:
 
         return has_changes
 
+    def check_workflow_conflicts(self, config: ConfigDict) -> dict:
+        """检查可扩展工作流中的跨工作流应用冲突
+        
+        Returns:
+            dict: {app_name: [workflow_name1, workflow_name2, ...]} 包含冲突的应用
+        """
+        ext_config = config.get("extensible_workflows", {})
+        app_workflows = {}  # {app_name: [workflow_key1, workflow_key2, ...]}
+        
+        # 收集所有工作流中的应用
+        for workflow_key in ["html", "md", "latex"]:
+            workflow_config = ext_config.get(workflow_key, {})
+            apps = workflow_config.get("apps", [])
+            
+            for app in apps:
+                # 兼容旧格式（字符串）和新格式（字典）
+                if isinstance(app, dict):
+                    app_name = app.get("name", "")
+                else:
+                    app_name = str(app)
+                
+                if app_name:
+                    if app_name not in app_workflows:
+                        app_workflows[app_name] = []
+                    app_workflows[app_name].append(workflow_key)
+        
+        # 找出存在冲突的应用（在多个工作流中出现）
+        conflicts = {app: workflows 
+                    for app, workflows in app_workflows.items() 
+                    if len(workflows) > 1}
+        
+        return conflicts
+
     def save(self, config: ConfigDict) -> None:
         """保存配置文件"""
         try:
