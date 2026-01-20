@@ -13,7 +13,7 @@ macOS application detection utilities.
 from __future__ import annotations
 import subprocess
 
-from AppKit import NSWorkspace
+from AppKit import NSWorkspace, NSRunningApplication
 from Quartz import (
     CGWindowListCopyWindowInfo,
     kCGWindowListOptionOnScreenOnly,
@@ -28,32 +28,40 @@ def detect_active_app() -> str:
     检测当前活跃的插入目标应用
 
     Returns:
-        "word", "wps", "excel", "wps_excel" 或前台应用名称（用于可扩展工作流匹配）
+        "word", "wps", "excel", "wps_excel" 或前台应用标识（用于可扩展工作流匹配）
     """
     # 直接使用 osascript，它在热键场景下更准确
     app = _get_frontmost_app_via_osascript()
+    if app:
+        name = (app.get("name") or "").lower()
+        bundle_id = app.get("bundle_id") or ""
+        if not bundle_id or name in ("electron",):
+            ns_app = _get_frontmost_app()
+            if ns_app and (ns_app.get("bundle_id") or ""):
+                app = ns_app
     
     if not app:
         return ""
 
     name = (app.get("name") or "").lower()
     original_name = app.get("name") or ""
+    bundle_id = app.get("bundle_id") or ""
+    bundle_id_norm = bundle_id.lower() if bundle_id else ""
+    pid = app.get("pid")
 
-    log(f"前台应用: name={original_name}")
+    log(f"前台应用: name={original_name}, bundle_id={bundle_id}, pid={pid}")
 
-    # ✅ Microsoft Word：name 可能是 "Word" 或 "Microsoft Word"
+
     if name in ("word", "microsoft word"):
         return "word"
-
-    # ✅ Microsoft Excel：name 可能是 "Excel" 或 "Microsoft Excel"
     if name in ("excel", "microsoft excel"):
         return "excel"
-
-    # ✅ WPS：宽松判断
     if "wps" in name or "kingsoft" in name:
         return detect_wps_type()
 
     # 兜底：返回原始应用名称（用于可扩展工作流匹配）
+    if bundle_id_norm:
+        return bundle_id_norm
     return original_name
 
 
@@ -137,23 +145,70 @@ def _get_frontmost_app() -> dict | None:
 def _get_frontmost_app_via_osascript() -> dict | None:
     """
     兜底方案：通过 AppleScript 获取 frontmost app 名称（非常稳定）
-    注意：这里拿不到 bundle_id/pid，就只填 name
+    通过 pid 反查 NSRunningApplication，获取更准确的 localizedName/bundle_id
     """
     try:
-        cmd = [
+        pid_cmd = [
+            "osascript",
+            "-e",
+            'tell application "System Events" to get unix id of first application process whose frontmost is true'
+        ]
+        pid_str = subprocess.check_output(
+            pid_cmd,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        ).strip()
+        bundle_id = ""
+        bundle_cmd = [
+            "osascript",
+            "-e",
+            'tell application "System Events" to get bundle identifier of first application process whose frontmost is true'
+        ]
+        try:
+            bundle_id = subprocess.check_output(
+                bundle_cmd,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            ).strip()
+        except Exception:
+            bundle_id = ""
+        if pid_str:
+            pid = int(pid_str)
+            app = NSRunningApplication.runningApplicationWithProcessIdentifier_(pid)
+            if app:
+                app_name = str(app.localizedName() or "")
+                app_bundle_id = str(app.bundleIdentifier() or "") or bundle_id
+                return {
+                    "name": app_name,
+                    "bundle_id": app_bundle_id,
+                    "pid": pid,
+                }
+        if bundle_id:
+            apps = NSRunningApplication.runningApplicationsWithBundleIdentifier_(bundle_id) or []
+            if apps:
+                app = apps[0]
+                return {
+                    "name": str(app.localizedName() or ""),
+                    "bundle_id": str(app.bundleIdentifier() or ""),
+                    "pid": int(app.processIdentifier()),
+                }
+
+        name_cmd = [
             "osascript",
             "-e",
             'tell application "System Events" to get name of first application process whose frontmost is true'
         ]
         name = subprocess.check_output(
-            cmd,
+            name_cmd,
             text=True,
             encoding="utf-8",
             errors="replace",
         ).strip()
         if not name:
             return None
-        return {"name": name, "bundle_id": "", "pid": None}
+        return {"name": name, "bundle_id": bundle_id, "pid": None}
     except Exception as e:
         log(f"获取前台应用失败(osascript): {e}")
         return None

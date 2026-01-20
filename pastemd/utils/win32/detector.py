@@ -1,7 +1,11 @@
 """Windows application detection utilities."""
 
 import win32com.client
-from .window import get_foreground_process_name, get_foreground_window_title
+from .window import (
+    get_foreground_process_name,
+    get_foreground_process_path,
+    get_foreground_window_title,
+)
 from ..logging import log
 
 
@@ -10,9 +14,10 @@ def detect_active_app() -> str:
     检测当前活跃的插入目标应用
     
     Returns:
-        "word", "wps", "excel", "wps_excel" 或前台进程名称（用于可扩展工作流匹配）
+        "word", "wps", "excel", "wps_excel" 或前台进程路径（用于可扩展工作流匹配）
     """
     process_name = get_foreground_process_name()
+    process_path = get_foreground_process_path()
     log(f"前台进程名称: {process_name}")
     
     if "winword" in process_name:
@@ -25,8 +30,10 @@ def detect_active_app() -> str:
         # 需要进一步区分是文字还是表格
         return detect_wps_type()
     else:
-        # 兜底：返回进程名称（去掉 .exe，用于可扩展工作流匹配）
-        return process_name.replace(".exe", "") if process_name else ""
+        # 兜底：返回进程路径（用于可扩展工作流匹配）
+        if process_path:
+            return process_path.lower()
+        return process_name or ""
 
 
 def detect_wps_type() -> str:

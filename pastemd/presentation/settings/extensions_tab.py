@@ -16,6 +16,11 @@ from ...utils.system_detect import is_macos, is_windows
 from ...utils.logging import log
 
 
+def _get_app_id(app_info: dict) -> str:
+    app_id = app_info.get("id") or ""
+    return app_id.lower() if isinstance(app_id, str) else ""
+
+
 class WorkflowSection:
     """单个工作流配置区域（作为 Tab 内容）"""
     
@@ -34,7 +39,7 @@ class WorkflowSection:
         self.has_keep_latex = has_keep_latex
         self.check_app_conflict = check_app_conflict
         
-        # 存储应用数据 {iid: {"name": ..., "path": ..., "window_patterns": [...]}}
+        # 存储应用数据 {iid: {"name": ..., "id": ..., "window_patterns": [...]}}
         self.app_data: dict[str, dict] = {}
         
         # 图标缓存
@@ -130,17 +135,31 @@ class WorkflowSection:
         for app in self.config.get("apps", []):
             if isinstance(app, dict):
                 name = app.get("name", "")
-                path = app.get("path", "")
                 patterns = app.get("window_patterns", [])
+                app_id = app.get("id", "")
+                if isinstance(app_id, str):
+                    app_id = app_id.lower()
             else:
                 name = str(app)
-                path = ""
                 patterns = []
-            
+                app_id = ""
+            path = ""
+            if app_id:
+                if is_macos():
+                    path = self._get_macos_app_path(app_id)
+                elif is_windows():
+                    path = app_id
+
             patterns_str = ", ".join(patterns) if patterns else ""
-            icon = self._extract_icon(path) if path else None
+            icon = None
+            if path:
+                icon = self._extract_icon(path)
             iid = self.treeview.insert("", tk.END, text=name, values=(patterns_str,), image=icon or "")
-            self.app_data[iid] = {"name": name, "path": path, "window_patterns": patterns}
+            self.app_data[iid] = {
+                "name": name,
+                "window_patterns": patterns,
+                "id": app_id,
+            }
         
         self.treeview.grid(row=0, column=0, sticky=tk.EW)
         
@@ -247,8 +266,9 @@ class WorkflowSection:
                 if url:
                     path = url.path()
                     app_name = os.path.basename(path).replace(".app", "")
+                    bundle_id = self._get_macos_bundle_id(path)
                     icon = self._extract_icon(path)
-                    self._add_app_to_list(app_name, path, icon)
+                    self._add_app_to_list(app_name, bundle_id, icon, path)
         except ImportError:
             self._add_app_fallback()
         except Exception as e:
@@ -266,8 +286,9 @@ class WorkflowSection:
             app_path = f"/Applications/{app_name}.app"
             if not os.path.exists(app_path):
                 app_path = ""
+            bundle_id = self._get_macos_bundle_id(app_path) if app_path else ""
             icon = self._extract_icon(app_path) if app_path else None
-            self._add_app_to_list(app_name, app_path, icon)
+            self._add_app_to_list(app_name, bundle_id, icon, app_path)
     
     def _add_app_windows(self):
         """Windows: 弹窗显示运行中的应用供选择"""
@@ -298,8 +319,9 @@ class WorkflowSection:
         if selected:
             self._add_app_to_list(
                 selected["name"], 
-                selected.get("exe_path", ""), 
-                selected.get("icon")
+                selected.get("exe_path", "").lower(), 
+                selected.get("icon"),
+                selected.get("exe_path", ""),
             )
     
     def _show_windows_app_selector(self, apps: list) -> Optional[dict]:
@@ -355,7 +377,7 @@ class WorkflowSection:
         dialog.wait_window()
         return selected[0]
     
-    def _add_app_to_list(self, app_name: str, app_path: str, icon=None):
+    def _add_app_to_list(self, app_name: str, app_id: str, icon=None, app_path: str = ""):
         """将应用添加到列表"""
         if app_name.lower() in RESERVED_APPS:
             messagebox.showerror(
@@ -365,8 +387,14 @@ class WorkflowSection:
             return
         
         # 检查当前工作流中是否已存在
-        existing = [self.app_data[iid]["name"] for iid in self.treeview.get_children()]
-        if app_name in existing:
+        new_app_info = {
+            "name": app_name,
+            "window_patterns": [],
+            "id": app_id.lower() if isinstance(app_id, str) else "",
+        }
+        new_id = _get_app_id(new_app_info)
+        existing = [_get_app_id(self.app_data[iid]) for iid in self.treeview.get_children()]
+        if new_id in existing:
             messagebox.showinfo(
                 t("settings.title.info"),
                 t("settings.extensions.app_exists", app=app_name)
@@ -375,7 +403,9 @@ class WorkflowSection:
         
         # 检查跨工作流冲突
         if self.check_app_conflict:
-            conflict_workflow = self.check_app_conflict(app_name, self.workflow_key)
+            conflict_workflow = self.check_app_conflict(
+                new_id, app_name, self.workflow_key
+            )
             if conflict_workflow:
                 messagebox.showerror(
                     t("settings.title.error"),
@@ -384,7 +414,7 @@ class WorkflowSection:
                 return
         
         iid = self.treeview.insert("", tk.END, text=app_name, values=("",), image=icon or "")
-        self.app_data[iid] = {"name": app_name, "path": app_path, "window_patterns": []}
+        self.app_data[iid] = new_app_info
     
     def _remove_app(self):
         """移除选中的应用"""
@@ -405,6 +435,34 @@ class WorkflowSection:
         elif is_windows():
             return self._extract_windows_icon(path)
         return None
+
+    def _get_macos_bundle_id(self, app_path: str) -> str:
+        """macOS: 从 .app 获取 bundle id"""
+        if not app_path:
+            return ""
+        try:
+            from AppKit import NSBundle
+            bundle = NSBundle.bundleWithPath_(app_path)
+            if bundle:
+                bundle_id = str(bundle.bundleIdentifier() or "")
+                return bundle_id.lower() if bundle_id else ""
+        except Exception as e:
+            log(f"Failed to get bundle id: {e}")
+        return ""
+
+    def _get_macos_app_path(self, bundle_id: str) -> str:
+        """macOS: 从 bundle id 获取 .app 路径"""
+        if not bundle_id:
+            return ""
+        try:
+            from AppKit import NSWorkspace
+            ws = NSWorkspace.sharedWorkspace()
+            url = ws.URLForApplicationWithBundleIdentifier_(bundle_id)
+            if url:
+                return str(url.path())
+        except Exception as e:
+            log(f"Failed to get app path from bundle id: {e}")
+        return ""
     
     def _extract_macos_icon(self, app_path: str):
         """macOS: 从 .app 提取图标"""
@@ -496,7 +554,16 @@ class WorkflowSection:
     
     def get_config(self) -> dict:
         """获取当前配置"""
-        apps = [self.app_data[iid] for iid in self.treeview.get_children()]
+        apps = []
+        for iid in self.treeview.get_children():
+            app_info = self.app_data[iid]
+            apps.append(
+                {
+                    "name": app_info.get("name", ""),
+                    "id": app_info.get("id", ""),
+                    "window_patterns": app_info.get("window_patterns", []),
+                }
+            )
         config = {
             "enabled": self.enabled_var.get(),
             "apps": apps,
@@ -581,11 +648,12 @@ class ExtensionsTab:
             wraplength=400
         ).pack(pady=(10, 0), anchor=tk.W)
     
-    def _check_app_conflict(self, app_name: str, current_workflow: str) -> Optional[str]:
+    def _check_app_conflict(self, app_id: str, app_name: str, current_workflow: str) -> Optional[str]:
         """检查应用是否在其他工作流中存在
         
         Args:
-            app_name: 应用名称
+            app_id: 应用标识
+            app_name: 应用名称（仅用于提示）
             current_workflow: 当前工作流键名
             
         Returns:
@@ -602,9 +670,8 @@ class ExtensionsTab:
                 continue
             
             # 检查该工作流中是否有此应用
-            existing_apps = [section.app_data[iid]["name"] 
-                           for iid in section.treeview.get_children()]
-            if app_name in existing_apps:
+            existing_apps = [_get_app_id(section.app_data[iid]) for iid in section.treeview.get_children()]
+            if app_id in existing_apps:
                 return workflow_name
         
         return None
@@ -618,27 +685,34 @@ class ExtensionsTab:
         }
         
         # 收集所有应用及其所在工作流
-        app_workflows = {}  # {app_name: [workflow_name1, workflow_name2, ...]}
+        app_workflows = {}  # {app_id: {"name": app_name, "workflows": [...]}}
         
         for workflow_key, (section, workflow_name) in workflow_sections.items():
-            apps = [section.app_data[iid]["name"] 
-                   for iid in section.treeview.get_children()]
-            for app in apps:
-                if app not in app_workflows:
-                    app_workflows[app] = []
-                app_workflows[app].append(workflow_name)
+            apps = [section.app_data[iid] for iid in section.treeview.get_children()]
+            for app_info in apps:
+                app_id = _get_app_id(app_info)
+                if not app_id:
+                    continue
+                if app_id not in app_workflows:
+                    app_workflows[app_id] = {
+                        "name": app_info.get("name", ""),
+                        "workflows": [],
+                    }
+                app_workflows[app_id]["workflows"].append(workflow_name)
         
         # 找出存在冲突的应用
-        conflicts = {app: workflows 
-                    for app, workflows in app_workflows.items() 
-                    if len(workflows) > 1}
+        conflicts = {
+            app_id: data
+            for app_id, data in app_workflows.items()
+            if len(data["workflows"]) > 1
+        }
         
         if conflicts:
             # 构建冲突提示消息
             conflict_lines = []
-            for app, workflows in conflicts.items():
-                workflow_list = "、".join(workflows)
-                conflict_lines.append(f"• {app}: {workflow_list}")
+            for data in conflicts.values():
+                workflow_list = "、".join(data["workflows"])
+                conflict_lines.append(f"• {data['name']}: {workflow_list}")
             
             conflict_msg = "\n".join(conflict_lines)
             messagebox.showwarning(

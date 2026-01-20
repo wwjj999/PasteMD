@@ -43,6 +43,27 @@ def get_foreground_process_name() -> str:
         return ""
 
 
+def get_foreground_process_path() -> str:
+    """
+    获取当前前台进程的可执行文件路径
+    
+    Returns:
+        可执行文件路径（小写），失败时返回空字符串
+    """
+    try:
+        hwnd = get_foreground_window()
+        if not hwnd:
+            return ""
+        
+        _, pid = win32process.GetWindowThreadProcessId(hwnd)
+        process = psutil.Process(pid)
+        return process.exe().lower()
+        
+    except Exception as e:
+        log(f"Failed to get foreground process path: {e}")
+        return ""
+
+
 def get_foreground_window_title() -> str:
     """
     获取当前前台窗口标题

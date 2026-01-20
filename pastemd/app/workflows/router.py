@@ -62,22 +62,27 @@ class WorkflowRouter:
                 # apps 是 [{"name": ..., "path": ..., "window_patterns": [...]}, ...] 格式
                 for app in cfg.get("apps", []):
                     app_name = app.get("name") if isinstance(app, dict) else app
+                    app_id = app.get("id", "") if isinstance(app, dict) else ""
+                    if isinstance(app_id, str):
+                        app_id = app_id.lower()
                     window_patterns = app.get("window_patterns", []) if isinstance(app, dict) else []
                     
-                    if not app_name:
+                    app_key = app_id
+
+                    if not app_key:
                         continue
                     
                     # 如果有窗口匹配模式，需要检查窗口标题
                     if window_patterns and window_title:
                         if self._match_window_patterns(window_title, window_patterns):
-                            routes[app_name] = workflow
-                            log(f"Registered extensible route (window matched): {app_name} -> {key}")
+                            routes[app_key] = workflow
+                            log(f"Registered extensible route (window matched): {app_key} -> {key}")
                         # 如果有模式但不匹配，不添加此路由
                     elif not window_patterns:
                         # 没有窗口模式，直接匹配应用名称
-                        if app_name not in routes:
-                            routes[app_name] = workflow
-                            log(f"Registered extensible route: {app_name} -> {key}")
+                        if app_key not in routes:
+                            routes[app_key] = workflow
+                            log(f"Registered extensible route: {app_key} -> {key}")
         
         return routes
     
@@ -132,5 +137,3 @@ router = WorkflowRouter()
 def execute_paste_workflow():
     """热键入口函数"""
     router.route()
-
-
