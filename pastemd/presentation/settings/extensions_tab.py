@@ -4,11 +4,14 @@
 import sys
 import os
 import tkinter as tk
+import tkinter.font as tkfont
 from tkinter import ttk, messagebox, filedialog, simpledialog
 from typing import Optional
 
 from ...i18n import t
 from ...config.defaults import RESERVED_APPS
+from ...config.paths import get_app_icon_path
+from ...utils.dpi import get_dpi_scale
 from ...utils.logging import log
 
 
@@ -72,21 +75,28 @@ class WorkflowSection:
         list_frame = ttk.Frame(self.frame)
         list_frame.grid(row=1, column=0, columnspan=2, sticky=tk.EW, pady=5)
         list_frame.columnconfigure(0, weight=1)
+        scale = get_dpi_scale()
+        icon_size = max(16, int(16 * scale))
+        base_font = tkfont.nametofont("TkDefaultFont")
+        row_height = max(icon_size + 6, base_font.metrics("linespace") + 6)
+        style = ttk.Style(self.frame)
+        style.configure("Apps.Treeview", rowheight=row_height)
         
         # Treeview 列：图标、应用名、窗口模式
-        columns = ("name", "window_patterns")
+        columns = ("window_patterns",)
         self.treeview = ttk.Treeview(
             list_frame, 
             columns=columns, 
             show="tree headings",
-            height=4
+            height=4,
+            style="Apps.Treeview",
         )
-        self.treeview.heading("#0", text="")
-        self.treeview.heading("name", text=t("settings.extensions.app_name"))
+        self.treeview.heading("#0", text=t("settings.extensions.app_name"))
         self.treeview.heading("window_patterns", text=t("settings.extensions.window_pattern"))
-        self.treeview.column("#0", width=30, stretch=False)
-        self.treeview.column("name", width=150)
-        self.treeview.column("window_patterns", width=150)
+        name_col_width = int(220 * scale)
+        self.treeview.column("#0", width=name_col_width, minwidth=int(160 * scale), stretch=True)
+        pattern_col_width = int(200 * scale)
+        self.treeview.column("window_patterns", width=pattern_col_width, minwidth=int(120 * scale), stretch=False)
         
         # 双击编辑窗口模式
         self.treeview.bind("<Double-1>", self._on_double_click)
@@ -104,7 +114,7 @@ class WorkflowSection:
             
             patterns_str = ", ".join(patterns) if patterns else ""
             icon = self._extract_icon(path) if path else None
-            iid = self.treeview.insert("", tk.END, values=(name, patterns_str), image=icon or "")
+            iid = self.treeview.insert("", tk.END, text=name, values=(patterns_str,), image=icon or "")
             self.app_data[iid] = {"name": name, "path": path, "window_patterns": patterns}
         
         self.treeview.grid(row=0, column=0, sticky=tk.EW)
@@ -122,7 +132,7 @@ class WorkflowSection:
         region = self.treeview.identify("region", event.x, event.y)
         if region == "cell":
             column = self.treeview.identify_column(event.x)
-            if column == "#2":  # window_patterns 列
+            if column == "#1":  # window_patterns 列
                 self._edit_patterns()
     
     def _edit_patterns(self):
@@ -140,7 +150,17 @@ class WorkflowSection:
         dialog = tk.Toplevel(self.frame)
         dialog.title(t("settings.extensions.edit_window_pattern"))
         dialog.transient(self.frame)
-        dialog.geometry("400x200")
+        scale = get_dpi_scale()
+        dialog_width = int(420 * scale)
+        dialog_height = int(260 * scale)
+        dialog.geometry(f"{dialog_width}x{dialog_height}")
+        dialog.minsize(dialog_width, dialog_height)
+        try:
+            icon_path = get_app_icon_path()
+            if os.path.exists(icon_path):
+                dialog.iconbitmap(icon_path)
+        except Exception as e:
+            log(f"Failed to set edit pattern dialog icon: {e}")
         
         ttk.Label(
             dialog, 
@@ -160,7 +180,11 @@ class WorkflowSection:
             self.treeview.set(iid, "window_patterns", patterns_str)
             dialog.destroy()
         
-        ttk.Button(dialog, text=t("settings.buttons.save"), command=save).pack(pady=10)
+        button_frame = ttk.Frame(dialog)
+        button_frame.pack(pady=10)
+        
+        ttk.Button(button_frame, text=t("settings.buttons.cancel"), command=dialog.destroy).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(button_frame, text=t("settings.buttons.save"), command=save).pack(side=tk.RIGHT, padx=5)
         
         # 延迟 grab_set 避免与热键监听冲突
         dialog.after(100, lambda: dialog.grab_set())
@@ -258,18 +282,34 @@ class WorkflowSection:
         dialog = tk.Toplevel(self.frame)
         dialog.title(t("settings.extensions.select_app"))
         dialog.transient(self.frame)
-        dialog.geometry("300x400")
+        scale = get_dpi_scale()
+        dialog_width = int(320 * scale)
+        dialog_height = int(440 * scale)
+        dialog.geometry(f"{dialog_width}x{dialog_height}")
+        dialog.minsize(dialog_width, dialog_height)
+        try:
+            icon_path = get_app_icon_path()
+            if os.path.exists(icon_path):
+                dialog.iconbitmap(icon_path)
+        except Exception as e:
+            log(f"Failed to set app selector icon: {e}")
         
         # 延迟 grab_set 避免与输入法切换冲突
         dialog.after(100, lambda: dialog.grab_set())
         
-        tree = ttk.Treeview(dialog, columns=("name",), show="tree", height=15)
+        scale = get_dpi_scale()
+        icon_size = max(16, int(16 * scale))
+        base_font = tkfont.nametofont("TkDefaultFont")
+        row_height = max(icon_size + 6, base_font.metrics("linespace") + 6)
+        style = ttk.Style(dialog)
+        style.configure("AppSelector.Treeview", rowheight=row_height)
+
+        tree = ttk.Treeview(dialog, show="tree", height=15, style="AppSelector.Treeview")
         tree.heading("#0", text="")
-        tree.column("#0", width=30, stretch=False)
-        tree.column("name", width=250)
+        tree.column("#0", width=250, stretch=True)
         
         for app in apps:
-            tree.insert("", tk.END, values=(app["name"],), image=app.get("icon") or "")
+            tree.insert("", tk.END, text=app["name"], image=app.get("icon") or "")
         
         tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
@@ -282,7 +322,11 @@ class WorkflowSection:
                 selected[0] = apps[idx]
             dialog.destroy()
         
-        ttk.Button(dialog, text=t("settings.buttons.select"), command=on_select).pack(pady=10)
+        button_frame = ttk.Frame(dialog)
+        button_frame.pack(pady=10)
+        
+        ttk.Button(button_frame, text=t("settings.buttons.cancel"), command=dialog.destroy).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(button_frame, text=t("settings.buttons.select"), command=on_select).pack(side=tk.RIGHT, padx=5)
         dialog.wait_window()
         return selected[0]
     
@@ -314,7 +358,7 @@ class WorkflowSection:
                 )
                 return
         
-        iid = self.treeview.insert("", tk.END, values=(app_name, ""), image=icon or "")
+        iid = self.treeview.insert("", tk.END, text=app_name, values=("",), image=icon or "")
         self.app_data[iid] = {"name": app_name, "path": app_path, "window_patterns": []}
     
     def _remove_app(self):
@@ -383,15 +427,26 @@ class WorkflowSection:
             import win32ui
             from PIL import Image, ImageTk
             
+            icon_size = max(16, int(16 * get_dpi_scale()))
             ico_x = win32gui.ExtractIcon(0, exe_path, 0)
             if ico_x:
                 hdc = win32ui.CreateDCFromHandle(win32gui.GetDC(0))
                 hbmp = win32ui.CreateBitmap()
-                hbmp.CreateCompatibleBitmap(hdc, 16, 16)
+                hbmp.CreateCompatibleBitmap(hdc, icon_size, icon_size)
                 
                 hdc_mem = hdc.CreateCompatibleDC()
                 hdc_mem.SelectObject(hbmp)
-                hdc_mem.DrawIcon((0, 0), ico_x)
+                win32gui.DrawIconEx(
+                    hdc_mem.GetHandleOutput(),
+                    0,
+                    0,
+                    ico_x,
+                    icon_size,
+                    icon_size,
+                    0,
+                    None,
+                    win32con.DI_NORMAL,
+                )
                 
                 bmpinfo = hbmp.GetInfo()
                 bmpstr = hbmp.GetBitmapBits(True)
@@ -400,6 +455,8 @@ class WorkflowSection:
                     (bmpinfo['bmWidth'], bmpinfo['bmHeight']),
                     bmpstr, 'raw', 'BGRA', 0, 1
                 )
+                if img.size != (icon_size, icon_size):
+                    img = img.resize((icon_size, icon_size), Image.Resampling.LANCZOS)
                 
                 win32gui.DestroyIcon(ico_x)
                 hdc_mem.DeleteDC()
