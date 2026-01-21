@@ -1,3 +1,4 @@
+import time
 from typing import Optional
 
 from ...core.types import PlacementResult
@@ -44,6 +45,7 @@ class FilePastePlacer(BasePastePlacer):
         try:
             with preserve_clipboard():
                 copy_files_to_clipboard(paths)
+                time.sleep(0.1)
                 simulate_paste()
 
             return PlacementResult(

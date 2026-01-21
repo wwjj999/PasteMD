@@ -1,3 +1,4 @@
+import time
 from typing import Optional
 from ...core.types import PlacementResult
 from ...utils.clipboard import set_clipboard_text, simulate_paste, preserve_clipboard
@@ -29,6 +30,7 @@ class PlainTextPastePlacer(BasePastePlacer):
         try:
             with preserve_clipboard():
                 set_clipboard_text(content)
+                time.sleep(0.1)
                 simulate_paste()
 
             return PlacementResult(
