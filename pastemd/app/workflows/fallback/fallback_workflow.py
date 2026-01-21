@@ -104,7 +104,7 @@ class FallbackWorkflow(BaseWorkflow):
         
         # 生成输出路径
         output_path = generate_output_path(
-            keep_file=(action == "save"),
+            keep_file=True,
             save_dir=self.config.get("save_dir", ""),
             table_data=table_data,
         )
@@ -146,7 +146,7 @@ class FallbackWorkflow(BaseWorkflow):
         
         # 2. 生成输出路径
         output_path = generate_output_path(
-            keep_file=(action == "save"),
+            keep_file=True,
             save_dir=self.config.get("save_dir", ""),
             md_text=""
         )
