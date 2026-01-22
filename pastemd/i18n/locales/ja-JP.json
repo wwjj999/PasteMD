@@ -138,6 +138,7 @@
     "settings.conversion.html_formatting": "HTML 整形オプション",
     "settings.conversion.strikethrough": "取り消し線 (~~) を <del> に変換して正しく表示",
     "settings.conversion.css_font_to_semantic": "CSS のフォント装飾を太字/斜体に変換（Excel/WPS HTML）",
+    "settings.conversion.bold_first_row_to_header": "先頭行が太字なら表ヘッダーとして扱う（Excel/WPS HTML）",
     "settings.conversion.first_paragraph_heading": "先頭段落の書式を無効化する",
     "settings.conversion.md_indent": "Markdown：見出し後の先頭段落の特殊書式を無効化",
     "settings.conversion.html_indent": "HTML：見出し後の先頭段落の特殊書式を無効化",

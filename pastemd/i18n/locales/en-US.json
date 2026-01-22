@@ -138,6 +138,7 @@
     "settings.conversion.html_formatting": "HTML Formatting Options",
     "settings.conversion.strikethrough": "Convert strikethrough (~~) to <del>",
     "settings.conversion.css_font_to_semantic": "Convert CSS font styles to bold/italic (Excel/WPS HTML)",
+    "settings.conversion.bold_first_row_to_header": "Treat bold first row as table header (Excel/WPS HTML)",
     "settings.conversion.first_paragraph_heading": "First paragraph formatting",
     "settings.conversion.md_indent": "Markdown: disable special first-paragraph style after headings",
     "settings.conversion.html_indent": "HTML: disable special first-paragraph style after headings",

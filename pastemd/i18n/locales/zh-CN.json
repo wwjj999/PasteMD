@@ -138,6 +138,7 @@
     "settings.conversion.html_formatting": "HTML 格式化选项",
     "settings.conversion.strikethrough": "删除线 (~~) 转换为 <del> 使得正确显示",
     "settings.conversion.css_font_to_semantic": "将 CSS 字体样式转换为粗体/斜体（Excel/WPS HTML）",
+    "settings.conversion.bold_first_row_to_header": "表格首行全粗体时识别为表头（Excel/WPS HTML）",
     "settings.conversion.first_paragraph_heading": "是否禁用首段格式",
     "settings.conversion.md_indent": "Markdown：禁用标题后首段特殊格式",
     "settings.conversion.html_indent": "HTML：禁用标题后首段特殊格式",

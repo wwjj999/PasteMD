@@ -6,6 +6,7 @@ from ...utils.html_formatter import (
     clean_html_content,
     convert_css_font_to_semantic,
     convert_strikethrough_to_del,
+    promote_bold_first_row_to_header,
 )
 from ...utils.logging import log
 
@@ -43,6 +44,8 @@ class HtmlPreprocessor(BasePreprocessor):
             convert_strikethrough_to_del(soup)
         if html_formatting.get("css_font_to_semantic", True):
             convert_css_font_to_semantic(soup)
+        if html_formatting.get("bold_first_row_to_header", False):
+            promote_bold_first_row_to_header(soup)
 
         # unwrap_li_paragraphs(soup)
         # remove_empty_paragraphs(soup)

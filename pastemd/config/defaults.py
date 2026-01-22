@@ -103,6 +103,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             "apps": [],
             "html_formatting": {
                 "css_font_to_semantic": True,
+                "bold_first_row_to_header": True,
             },
         },
         "latex": {

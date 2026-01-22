@@ -139,6 +139,60 @@ def convert_css_font_to_semantic(soup: BeautifulSoup) -> None:
         tag.replace_with(wrapper)
 
 
+def promote_bold_first_row_to_header(soup: BeautifulSoup) -> None:
+    """
+    将表格首行的粗体单元格提升为表头 (<th>)。
+
+    主要用于 Excel/WPS 复制的 HTML：表头通常是加粗文本但仍是 <td>，
+    Pandoc 无法识别为表头，导致 Markdown 不生成表头分隔线。
+    """
+
+    def _meaningful_children(tag: Tag) -> list:
+        return [
+            child
+            for child in tag.contents
+            if not (isinstance(child, NavigableString) and not str(child).strip())
+        ]
+
+    def _cell_is_bold(cell: Tag) -> bool:
+        children = _meaningful_children(cell)
+        if len(children) != 1:
+            return False
+        child = children[0]
+        return isinstance(child, Tag) and child.name in ("strong", "b")
+
+    for table in soup.find_all("table"):
+        if table.find("th"):
+            continue
+
+        rows = table.find_all("tr")
+        if len(rows) < 2:
+            continue
+
+        header_row = rows[0]
+        header_cells = header_row.find_all(["td", "th"], recursive=False)
+        if not header_cells:
+            continue
+
+        if not all(_cell_is_bold(cell) for cell in header_cells):
+            continue
+
+        has_non_bold_cell = False
+        for row in rows[1:]:
+            for cell in row.find_all(["td", "th"], recursive=False):
+                if not _cell_is_bold(cell):
+                    has_non_bold_cell = True
+                    break
+            if has_non_bold_cell:
+                break
+
+        if not has_non_bold_cell:
+            continue
+
+        for cell in header_cells:
+            cell.name = "th"
+
+
 def convert_strikethrough_to_del(soup) -> None:
     """
     在 BeautifulSoup 解析树中查找文本节点，将 ``~~text~~`` 替换为 ``<del>text</del>``。

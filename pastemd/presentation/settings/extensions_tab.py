@@ -83,11 +83,19 @@ class WorkflowSection:
             self.css_font_to_semantic_var = tk.BooleanVar(
                 value=html_formatting.get("css_font_to_semantic", True)
             )
+            self.bold_first_row_to_header_var = tk.BooleanVar(
+                value=html_formatting.get("bold_first_row_to_header", True)
+            )
             ttk.Checkbutton(
                 self.frame,
                 text=t("settings.conversion.css_font_to_semantic"),
                 variable=self.css_font_to_semantic_var,
             ).grid(row=next_row, column=0, columnspan=2, sticky=tk.W, pady=(5, 0))
+            ttk.Checkbutton(
+                self.frame,
+                text=t("settings.conversion.bold_first_row_to_header"),
+                variable=self.bold_first_row_to_header_var,
+            ).grid(row=next_row + 1, column=0, columnspan=2, sticky=tk.W, pady=(5, 0))
     
     def _create_app_treeview(self):
         """创建应用列表 Treeview"""
@@ -583,10 +591,13 @@ class WorkflowSection:
         }
         if self.has_keep_latex:
             config["keep_formula_latex"] = self.keep_latex_var.get()
-        if hasattr(self, "css_font_to_semantic_var"):
-            config["html_formatting"] = {
-                "css_font_to_semantic": self.css_font_to_semantic_var.get()
-            }
+        if hasattr(self, "css_font_to_semantic_var") or hasattr(self, "bold_first_row_to_header_var"):
+            html_formatting = {}
+            if hasattr(self, "css_font_to_semantic_var"):
+                html_formatting["css_font_to_semantic"] = self.css_font_to_semantic_var.get()
+            if hasattr(self, "bold_first_row_to_header_var"):
+                html_formatting["bold_first_row_to_header"] = self.bold_first_row_to_header_var.get()
+            config["html_formatting"] = html_formatting
         return config
 
 
