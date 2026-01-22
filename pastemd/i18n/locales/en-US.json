@@ -88,7 +88,7 @@
     "settings.extensions.description": "Note: HTML paste is suitable for Notion, Yuque etc.; Markdown paste is suitable for Obsidian and other native MD editors; File paste is suitable for apps that accept attachments.",
     "settings.extensions.reserved_app_error": "Application {app} is reserved (Word/WPS/Excel) and cannot be added.",
     "settings.extensions.app_exists": "Application {app} is already in the list.",
-    "settings.extensions.app_conflict_error": "Application {app} already exists in '{workflow}' workflow. An application can only be configured for one paste mode.",
+    "settings.extensions.app_conflict_error": "Application {app} is already configured in '{workflow}'. Add it here anyway to use different window name patterns?",
     "settings.extensions.config_conflict_warning": "Detected cross-workflow application conflicts in configuration:\n\n{conflicts}\n\nPlease fix the configuration. An application can only be configured for one paste mode.\nConflicting applications may cause unpredictable paste behavior.",
     "settings.title.warning": "Warning",
     "settings.extensions.no_running_apps": "No running applications detected.",

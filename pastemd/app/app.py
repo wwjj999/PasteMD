@@ -44,7 +44,7 @@ def initialize_application() -> tuple[Container, dict]:
     Returns:
         tuple: (container, workflow_conflicts)
             - container: 依赖注入容器
-            - workflow_conflicts: 跨工作流应用冲突字典 {app_name: [workflow1, workflow2, ...]}
+            - workflow_conflicts: 预留字段，当前返回空字典
     """
     # 1. 加载配置
     config_loader = ConfigLoader()
@@ -69,16 +69,11 @@ def initialize_application() -> tuple[Container, dict]:
         language = str(language_value)
     set_language(language)
     
-    # 2. 检查工作流配置冲突
-    workflow_conflicts = config_loader.check_workflow_conflicts(config)
-    if workflow_conflicts:
-        log(f"Warning: Detected workflow conflicts: {workflow_conflicts}")
-    
-    # 3. 创建依赖注入容器
+    # 2. 创建依赖注入容器
     container = Container()
     
     log("Application initialized successfully")
-    return container, workflow_conflicts
+    return container, {}
 
 
 def show_startup_notification(notification_manager: NotificationManager) -> None:
@@ -181,33 +176,6 @@ def main() -> None:
         
         # 显示启动通知
         show_startup_notification(notification_manager)
-        
-        # 检查并显示工作流冲突警告
-        if workflow_conflicts:
-            def _show_conflict_warning():
-                from tkinter import messagebox
-                
-                # 获取工作流名称映射
-                workflow_names = {
-                    "html": t("settings.extensions.html_title"),
-                    "md": t("settings.extensions.md_title"),
-                    "latex": t("settings.extensions.latex_title"),
-                }
-                
-                # 构建冲突提示消息
-                conflict_lines = []
-                for app, workflows in workflow_conflicts.items():
-                    workflow_list = "、".join([workflow_names.get(w, w) for w in workflows])
-                    conflict_lines.append(f"• {app}: {workflow_list}")
-                
-                conflict_msg = "\n".join(conflict_lines)
-                messagebox.showwarning(
-                    t("settings.title.warning"),
-                    t("settings.extensions.config_conflict_warning", conflicts=conflict_msg)
-                )
-            
-            # 延迟显示警告，避免与启动通知冲突
-            root.after(2000, _show_conflict_warning)
         
         # 启动后台版本检查（无需显示通知）
         check_update_in_background(notification_manager, tray_menu_manager)

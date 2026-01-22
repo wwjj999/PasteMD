@@ -88,7 +88,7 @@
     "settings.extensions.description": "注：HTML ペーストは Notion などのメモアプリに適しています。Markdown ペーストは Obsidian などのネイティブ MD エディターに適しています。ファイルペーストは添付ペースト対応アプリに適しています。",
     "settings.extensions.reserved_app_error": "アプリケーション {app} は予約済み（Word/WPS/Excel）のため追加できません。",
     "settings.extensions.app_exists": "アプリケーション {app} は既にリストにあります。",
-    "settings.extensions.app_conflict_error": "アプリケーション {app} は「{workflow}」ワークフローに既に存在します。1つのアプリケーションは1つのペーストモードのみ設定できます。",
+    "settings.extensions.app_conflict_error": "アプリケーション {app} は「{workflow}」に既に設定されています。別のウィンドウ名パターン用にここへ追加しますか？",
     "settings.extensions.config_conflict_warning": "設定でクロスワークフローアプリケーションの競合が検出されました：\n\n{conflicts}\n\n設定を修正してください。1つのアプリケーションは1つのペーストモードのみ設定できます。\n競合するアプリケーションは予期しないペースト動作を引き起こす可能性があります。",
     "settings.title.warning": "警告",
     "settings.extensions.no_running_apps": "実行中のアプリケーションが検出されませんでした。",

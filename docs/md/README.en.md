@@ -347,3 +347,4 @@ Also welcome to join the **PasteMD User Group** for discussion and support:
 ## License
 
 This project is released under the [MIT License](../../LICENSE).
+Third-party licenses are listed in [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md).

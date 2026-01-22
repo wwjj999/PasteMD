@@ -1,7 +1,7 @@
 psutil
 pyperclip
 pynput
-pystray
+pystray @ git+https://github.com/RICHQAQ/pystray.git@master
 Pillow
 plyer
 openpyxl

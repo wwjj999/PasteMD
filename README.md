@@ -361,3 +361,4 @@ pyinstaller --clean -F -w -n PasteMD
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+Third-party licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

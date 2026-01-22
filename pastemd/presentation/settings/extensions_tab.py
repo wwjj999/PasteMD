@@ -401,17 +401,17 @@ class WorkflowSection:
             )
             return
         
-        # 检查跨工作流冲突
+        # 检查跨工作流冲突（提醒并确认是否继续）
         if self.check_app_conflict:
             conflict_workflow = self.check_app_conflict(
                 new_id, app_name, self.workflow_key
             )
             if conflict_workflow:
-                messagebox.showerror(
-                    t("settings.title.error"),
-                    t("settings.extensions.app_conflict_error", app=app_name, workflow=conflict_workflow)
-                )
-                return
+                if not messagebox.askyesno(
+                    t("settings.title.warning"),
+                    t("settings.extensions.app_conflict_error", app=app_name, workflow=conflict_workflow),
+                ):
+                    return
         
         iid = self.treeview.insert("", tk.END, text=app_name, values=("",), image=icon or "")
         self.app_data[iid] = new_app_info
@@ -650,9 +650,6 @@ class ExtensionsTab:
             self.file_section.frame,
             text=t("settings.extensions.file_title")
         )
-        
-        # 检查配置中的跨工作流应用冲突
-        self.frame.after(100, self._check_config_conflicts)
         
         # 说明文字
         ttk.Label(

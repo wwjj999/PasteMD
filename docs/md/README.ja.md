@@ -359,3 +359,4 @@ Star してくれたみなさん、いつもありがとうございます！も
 ## License
 
 This project is licensed under the [MIT License](../../LICENSE).
+Third-party licenses are listed in [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md).
