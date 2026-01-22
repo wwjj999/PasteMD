@@ -195,10 +195,12 @@ class WorkflowSection:
     def _on_double_click(self, event):
         """双击编辑窗口模式"""
         region = self.treeview.identify("region", event.x, event.y)
-        if region == "cell":
-            column = self.treeview.identify_column(event.x)
-            if column == "#1":  # window_patterns 列
-                self._edit_patterns()
+        if region in ("cell", "tree"):
+            row_id = self.treeview.identify_row(event.y)
+            if not row_id:
+                return
+            self.treeview.selection_set(row_id)
+            self._edit_patterns()
     
     def _edit_patterns(self):
         """编辑选中应用的窗口匹配模式"""
