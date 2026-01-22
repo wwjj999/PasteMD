@@ -2,6 +2,7 @@
 
 import sys
 from abc import ABC, abstractmethod
+import time
 from typing import List
 from ...core.types import PlacementResult
 from ...utils.logging import log
@@ -51,6 +52,7 @@ class ClipboardHTMLSpreadsheetPlacer(BaseSpreadsheetPlacer):
             # Excel/WPS 可以处理 HTML table；Plain TSV 作为兜底
             with preserve_clipboard():
                 set_clipboard_rich_text(html=html_text, text=tsv_text)
+                time.sleep(0.3)
                 simulate_paste()
 
             return PlacementResult(

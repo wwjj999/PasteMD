@@ -78,6 +78,8 @@ def table_to_html(table_data: List[List[str]], *, keep_format: bool) -> str:
         Complete HTML document with table.
     """
     rows_html: List[str] = []
+    start_marker = "<!--StartFragment-->"
+    end_marker = "<!--EndFragment-->"
 
     for r, row in enumerate(table_data):
         cell_tag = "th" if r == 0 else "td"
@@ -111,6 +113,7 @@ def table_to_html(table_data: List[List[str]], *, keep_format: bool) -> str:
 
     # Build complete HTML document
     return (
+        start_marker +
         "<html><head><meta charset=\"utf-8\" />"
         "<style>"
         "table{border-collapse:collapse}"
@@ -122,6 +125,7 @@ def table_to_html(table_data: List[List[str]], *, keep_format: bool) -> str:
         + "".join(rows_html)
         + "</table>"
         "</body></html>"
+        + end_marker
     )
 
 
