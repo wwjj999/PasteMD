@@ -77,7 +77,7 @@ class OfficeOmmlBaseWorkflow(BaseWorkflow, ABC):
             html_body = extract_html_body(html_with_mathml)
 
             # Convert MathML to OMML conditional comments
-            html_with_omml = convert_html_mathml_to_omml(html_body)
+            html_with_omml = self._convert_html_mathml_to_omml(html_body)
 
             # Wrap in Office HTML template
             office_html = generate_office_html(html_with_omml)
@@ -141,3 +141,6 @@ class OfficeOmmlBaseWorkflow(BaseWorkflow, ABC):
             return ("markdown", get_clipboard_text(), False, 0)
 
         raise ClipboardError("剪贴板为空或无有效内容")
+
+    def _convert_html_mathml_to_omml(self, html_body: str) -> str:
+        return convert_html_mathml_to_omml(html_body)

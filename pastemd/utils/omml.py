@@ -74,22 +74,52 @@ def wrap_omml_conditional(omml: str, fallback_text: str = "") -> str:
     return result
 
 
-def convert_html_mathml_to_omml(html: str) -> str:
-    """Replace all MathML elements in HTML with OMML conditional comments.
-    
+def _extract_table_ranges(html: str) -> list[tuple[int, int]]:
+    """Extract table ranges from HTML.
+
+    Args:
+        html: HTML string containing table elements
+
+    Returns:
+        List of (start_pos, end_pos) tuples for table blocks
+    """
+    pattern = r'<table[^>]*>.*?</table>'
+    ranges = []
+    for match in re.finditer(pattern, html, re.DOTALL | re.IGNORECASE):
+        ranges.append((match.start(), match.end()))
+    return ranges
+
+
+def _is_within_ranges(start: int, end: int, ranges: list[tuple[int, int]]) -> bool:
+    for range_start, range_end in ranges:
+        if start >= range_start and end <= range_end:
+            return True
+    return False
+
+
+def convert_html_mathml_to_omml(html: str, *, skip_table_mathml: bool = False) -> str:
+    """Replace MathML elements in HTML with OMML conditional comments.
+
     Args:
         html: HTML string with MathML formulas
-        
+        skip_table_mathml: When True, keep MathML inside <table> blocks unchanged
+
     Returns:
         HTML with MathML replaced by OMML conditional comments
     """
     mathml_elements = extract_mathml_elements(html)
     if not mathml_elements:
         return html
-    
+
+    table_ranges: list[tuple[int, int]] = []
+    if skip_table_mathml:
+        table_ranges = _extract_table_ranges(html)
+
     # Process in reverse order to preserve positions
     result = html
     for mathml, start, end in reversed(mathml_elements):
+        if table_ranges and _is_within_ranges(start, end, table_ranges):
+            continue
         try:
             omml = convert_mathml_to_omml(mathml)
             # Extract original text content as fallback
@@ -100,7 +130,7 @@ def convert_html_mathml_to_omml(html: str) -> str:
             log(f"Failed to convert MathML element: {e}")
             # Keep original MathML if conversion fails
             continue
-    
+
     return result
 
 
