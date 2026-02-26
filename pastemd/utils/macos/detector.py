@@ -274,36 +274,22 @@ def get_frontmost_window_title() -> str:
 
 if __name__ == "__main__":
     import time
-    from pynput import keyboard
 
-    log("macOS 前台应用检测测试 - 按 Cmd+Shift+D 触发检测，按 Ctrl+C 退出")
-    
-    def on_activate():
-        """热键触发时执行检测"""
-        # 添加短暂延迟，避免热键按下时焦点切换的干扰
-        time.sleep(0.1)
-        
-        print(f"\n{'='*60}")
-        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] 开始检测")
-        
-        # 使用正常流程检测
-        result = detect_active_app()
-        
-        print(f"检测结果: {result}")
-        print(f"{'='*60}\n")
-    
-    # 设置热键 Cmd+Shift+D
-    hotkey = keyboard.GlobalHotKeys({
-        '<cmd>+<shift>+d': on_activate
-    })
-    
+    print("macOS 前台应用检测测试")
+    print("切换到目标应用后回到终端按 Enter 触发检测，输入 q 退出\n")
+
     try:
-        hotkey.start()
-        print("✓ 热键监听已启动")
-        print("✓ 请切换到要检测的应用窗口")
-        print("✓ 按 Cmd+Shift+D 触发检测")
-        print("✓ 按 Ctrl+C 退出\n")
-        hotkey.join()
-    except KeyboardInterrupt:
-        log("检测测试已手动终止")
+        while True:
+            cmd = input("按 Enter 检测 (q 退出): ").strip().lower()
+            if cmd == "q":
+                break
+
+            time.sleep(0.3)  # 短暂延迟让用户切回目标应用
+
+            print(f"\n{'='*60}")
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] 开始检测")
+            result = detect_active_app()
+            print(f"检测结果: {result}")
+            print(f"{'='*60}\n")
+    except (KeyboardInterrupt, EOFError):
         print("\n退出检测")

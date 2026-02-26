@@ -29,7 +29,7 @@
     "hotkey.recorder.error.no_normal_key": "热键必须包含至少一个普通键",
     "hotkey.recorder.error.shift_only_long": "不能仅使用 Shift 作为修饰键，会与系统输入冲突。\n请至少包含 Ctrl、Alt 或 Win 键之一。",
     "hotkey.recorder.error.shift_only_short": "不能仅使用 Shift 作为修饰键，会与系统输入冲突",
-    "hotkey.recorder.error.system_reserved_long": "不能使用 {combo}，这是系统级快捷键。\npynput 无法拦截其默认行为，会导致冲突。\n\n建议使用不常用的组合键，如：\n• Ctrl+Shift+V\n• Ctrl+Alt+V\n• Ctrl+Shift+B（默认配置）",
+    "hotkey.recorder.error.system_reserved_long": "不能使用 {combo}，这是系统级快捷键。\n无法拦截其默认行为，会导致冲突。\n\n建议使用不常用的组合键，如：\n• Ctrl+Shift+V\n• Ctrl+Alt+V\n• Ctrl+Shift+B（默认配置）",
     "hotkey.recorder.error.system_reserved_short": "不能使用系统级快捷键 {combo}",
     "hotkey.recorder.system.alt_f4": "Alt+F4（关闭窗口）",
     "hotkey.recorder.system.ctrl_a": "Ctrl+A（全选）",

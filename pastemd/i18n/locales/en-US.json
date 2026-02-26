@@ -29,7 +29,7 @@
     "hotkey.recorder.error.no_normal_key": "The hotkey must include at least one regular key.",
     "hotkey.recorder.error.shift_only_long": "Shift cannot be the only modifier because it conflicts with input.\nInclude Ctrl, Alt, or the Win key.",
     "hotkey.recorder.error.shift_only_short": "Shift cannot be the only modifier; it conflicts with system input.",
-    "hotkey.recorder.error.system_reserved_long": "{combo} is a system reserved shortcut.\npynput cannot override its default behavior and will conflict.\n\nTry uncommon combinations such as:\n• Ctrl+Shift+V\n• Ctrl+Alt+V\n• Ctrl+Shift+B (default)",
+    "hotkey.recorder.error.system_reserved_long": "{combo} is a system reserved shortcut.\nIt cannot be overridden and will conflict.\n\nTry uncommon combinations such as:\n• Ctrl+Shift+V\n• Ctrl+Alt+V\n• Ctrl+Shift+B (default)",
     "hotkey.recorder.error.system_reserved_short": "System reserved hotkey {combo} cannot be used.",
     "hotkey.recorder.system.alt_f4": "Alt+F4 (Close window)",
     "hotkey.recorder.system.ctrl_a": "Ctrl+A (Select all)",

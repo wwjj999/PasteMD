@@ -85,3 +85,17 @@ class HotkeyChecker:
             return True  # 不支持的平台，假设可用
         
         return checker.is_hotkey_available(hotkey_str)
+
+    @classmethod
+    def parse_hotkey(cls, hotkey_str: str):
+        """
+        解析热键字符串为 (modifiers, key_code/vk_code)。
+
+        Returns:
+            平台特定的 (modifiers, key) 元组，解析失败返回 None
+        """
+        checker = cls._get_checker()
+        if checker is None:
+            return None
+        
+        return checker.parse_hotkey(hotkey_str)

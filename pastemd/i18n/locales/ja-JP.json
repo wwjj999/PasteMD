@@ -29,7 +29,7 @@
     "hotkey.recorder.error.no_normal_key": "ホットキーには少なくとも1つの通常キーが必要です",
     "hotkey.recorder.error.shift_only_long": "Shift のみを修飾キーとして使用できません。システム入力と競合します。\nCtrl、Alt、または Win キーのいずれかを含めてください。",
     "hotkey.recorder.error.shift_only_short": "Shift のみを修飾キーとして使用できません。システム入力と競合します",
-    "hotkey.recorder.error.system_reserved_long": "{combo} は使用できません。システムレベルのショートカットです。\npynput は既定の動作を抑止できず、競合の原因になります。\n\n推奨：\n• Ctrl+Shift+V\n• Ctrl+Alt+V\n• Ctrl+Shift+B（既定）",
+    "hotkey.recorder.error.system_reserved_long": "{combo} は使用できません。システムレベルのショートカットです。\n既定の動作を抑止できず、競合の原因になります。\n\n推奨：\n• Ctrl+Shift+V\n• Ctrl+Alt+V\n• Ctrl+Shift+B（既定）",
     "hotkey.recorder.error.system_reserved_short": "システムレベルのショートカット {combo} は使用できません",
     "hotkey.recorder.system.alt_f4": "Alt+F4（ウィンドウを閉じる）",
     "hotkey.recorder.system.ctrl_a": "Ctrl+A（全選択）",

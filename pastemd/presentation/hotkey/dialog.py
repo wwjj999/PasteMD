@@ -93,7 +93,7 @@ class HotkeyDialog:
         self._create_widgets()
         
         # 热键录制器
-        # macOS: 录制仅用 Tk 事件，避免 pynput 触发系统输入法/队列断言崩溃
+        # macOS: 录制仅用 Tk 事件，避免触发系统输入法/队列断言崩溃
         self.recorder = None if is_macos() else HotkeyRecorder()
 
     def _call_on_close_callback(self):
@@ -426,7 +426,7 @@ class HotkeyDialog:
 
         try:
             self._cleanup()
-            # 调用保存回调（可能会重启全局热键），确保录制监听先停止，避免 pynput 多监听器并行
+            # 调用保存回调（可能会重启全局热键），确保录制监听先停止
             self.on_save(self.new_hotkey)
             if not is_macos():
                 messagebox.showinfo("成功", f"热键已更新为：{self._format_hotkey(self.new_hotkey)}\n\n请使用新热键测试功能。")

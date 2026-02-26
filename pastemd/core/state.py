@@ -18,7 +18,7 @@ class AppState:
 
     # UI组件引用
     root: Optional[Any] = None      # tkinter.Tk (Global root window)
-    listener: Optional[Any] = None  # pynput.keyboard.GlobalHotKeys
+    listener: Optional[Any] = None  # HotkeyManager
     icon: Optional[Any] = None      # pystray.Icon
 
     # 单实例检查器
