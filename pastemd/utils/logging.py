@@ -40,7 +40,7 @@ def _get_logger() -> logging.Logger:
 
         # Format: [2025-12-07 10:30:00] message
         formatter = logging.Formatter(
-            "[%(asctime)s] %(message)s",
+            "[%(asctime)s] [%(levelname)s] %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
         )
         handler.setFormatter(formatter)

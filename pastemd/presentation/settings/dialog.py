@@ -146,10 +146,8 @@ class SettingsDialog:
         # 窗口居中
         self._center_window()
         
-        # 创建UI组件
-        self._create_widgets()
-        if self._initial_tab:
-            self.root.after_idle(lambda: self.select_tab(self._initial_tab))
+        # 延迟创建 UI 组件：窗口先显示再填充，避免低配机器上黑屏/卡顿
+        self.root.after_idle(self._lazy_create_widgets)
 
     def set_open_hotkey_dialog(self, callback: Optional[Callable[[], None]]) -> None:
         """Inject a callback to open the hotkey dialog (provided by TrayMenuManager)."""
@@ -213,12 +211,26 @@ class SettingsDialog:
         y = (self.root.winfo_screenheight() // 2) - (height // 2)
         self.root.geometry(f'{width}x{height}+{x}+{y}')
         
+    def _lazy_create_widgets(self):
+        """延迟创建 UI 组件（窗口显示后再创建，避免初始化黑屏）"""
+        try:
+            if not self.is_alive():
+                return
+            self._create_widgets()
+            if self._initial_tab and self._initial_tab != "general":
+                # 标签页可能已由即时创建路径创建（macOS），也可能还未创建（Windows 懒加载）
+                if self._initial_tab not in self._tab_created:
+                    self._lazy_create_tab_at(self._initial_tab)
+                self.select_tab(self._initial_tab)
+        except Exception as e:
+            log(f"Failed to create settings widgets lazily: {e}")
+
     def _create_widgets(self):
         """创建UI组件"""
         # 底部按钮栏（先创建，确保不被覆盖）
         button_frame = ttk.Frame(self.root, padding="10")
         button_frame.pack(fill=tk.X, side=tk.BOTTOM)
-        
+
         cancel_btn = ttk.Button(
             button_frame,
             text=t("settings.buttons.cancel"),
@@ -226,7 +238,7 @@ class SettingsDialog:
             width=10
         )
         cancel_btn.pack(side=tk.RIGHT, padx=5)
-        
+
         save_btn = ttk.Button(
             button_frame,
             text=t("settings.buttons.save"),
@@ -234,34 +246,150 @@ class SettingsDialog:
             width=10
         )
         save_btn.pack(side=tk.RIGHT, padx=5)
-        
+
         # 创建 Notebook (选项卡容器)
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=(10, 5))
 
+        # 标签页跟踪
+        self._tab_created = set()
+        self._extensions_tab = None
+        self._permissions_tab = None
+
+        # General 标签页 - 始终即时创建（默认首个可见）
         self._create_general_tab()
-        self._create_conversion_tab()
-        self._create_advanced_tab()
-        self._create_experimental_tab()
-        
-        # 扩展选项卡
-        try:
-            self._extensions_tab = ExtensionsTab(self.notebook, self.current_config)
-            self._tab_map["extensions"] = self._extensions_tab.frame
-        except Exception as e:
-            log(f"Failed to create extensions tab: {e}")
-            self._extensions_tab = None
-        
-        # macOS 权限选项卡
+        self._tab_created.add("general")
+
         if is_macos():
+            # macOS 性能足够，全部标签页即时创建，避免懒加载的标签切换延迟
+            self._create_conversion_tab()
+            self._tab_created.add("conversion")
+            self._create_advanced_tab()
+            self._tab_created.add("advanced")
+            self._create_experimental_tab()
+            self._tab_created.add("experimental")
+
+            try:
+                self._extensions_tab = ExtensionsTab(self.notebook, self.current_config)
+                self._tab_map["extensions"] = self._extensions_tab.frame
+                self._tab_created.add("extensions")
+            except Exception as e:
+                log(f"Failed to create extensions tab: {e}")
+
             try:
                 self._permissions_tab = MacOSPermissionsTab(self.notebook, self.root)
                 self._tab_map["permissions"] = self._permissions_tab.frame
+                self._tab_created.add("permissions")
             except Exception as e:
                 log(f"Failed to create permissions tab: {e}")
-        
+        else:
+            # Windows 低配机器：懒加载，仅加占位符，点击标签时才创建
+            self._lazy_tab_keys = ["conversion", "advanced", "experimental"]
+            self._lazy_tab_labels = {
+                "conversion": lambda: t("settings.tab.conversion"),
+                "advanced":   lambda: t("settings.tab.advanced"),
+                "experimental": lambda: t("settings.tab.experimental"),
+            }
+            for key in self._lazy_tab_keys:
+                placeholder = ttk.Frame(self.notebook)
+                self.notebook.add(placeholder, text=self._lazy_tab_labels[key]())
+                self._tab_map[key] = placeholder
+
+            # Extensions 标签页占位
+            self._extensions_placeholder = ttk.Frame(self.notebook)
+            self.notebook.add(self._extensions_placeholder, text=t("settings.tab.extensions"))
+            self._tab_map["extensions"] = self._extensions_placeholder
+
+            # 监听标签页切换，触发懒加载
+            self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+
         # 避免首次打开时就选中首个输入框
         self.root.after_idle(self._clear_initial_selection)
+
+    def _get_tab_key_by_index(self, idx: int) -> str | None:
+        """根据 notebook 索引获取标签页键名（仅用于 Windows 懒加载路径）"""
+        tab_order = ["general", *self._lazy_tab_keys, "extensions"]
+        if 0 <= idx < len(tab_order):
+            return tab_order[idx]
+        return None
+
+    def _on_tab_changed(self, event=None) -> None:
+        """标签页切换时触发懒加载"""
+        try:
+            selected = self.notebook.select()
+            idx = self.notebook.index(selected)
+            key = self._get_tab_key_by_index(idx)
+            if key is None or key in self._tab_created:
+                return
+            self._lazy_create_tab_at(key)
+        except Exception as e:
+            log(f"Failed to lazy-create tab: {e}")
+
+    def _lazy_create_tab_at(self, key: str) -> None:
+        """创建指定标签页的真实内容，替换占位框架"""
+        if key in self._tab_created:
+            return
+        if key == "conversion":
+            self._do_lazy_swap(key, self._create_conversion_tab)
+        elif key == "advanced":
+            self._do_lazy_swap(key, self._create_advanced_tab)
+        elif key == "experimental":
+            self._do_lazy_swap(key, self._create_experimental_tab)
+        elif key == "extensions":
+            self._do_lazy_swap_extensions()
+
+    def _do_lazy_swap(self, key: str, creator) -> None:
+        """通用懒加载替换：执行 creator → 移动新框架到位 → 移除占位符"""
+        placeholder = self._tab_map.get(key)
+        if placeholder is None:
+            return
+        try:
+            idx = self.notebook.index(placeholder)
+        except Exception:
+            return
+
+        # 先标记已创建，防止 forget 触发的 <<NotebookTabChanged>> 事件重入
+        self._tab_created.add(key)
+
+        # 调用真实创建方法（会在 notebook 末尾添加新框架）
+        creator()
+
+        # 刚创建的框架在末尾，_tab_map[key] 已被更新
+        real_frame = self._tab_map.get(key)
+        if real_frame is None or real_frame is placeholder:
+            return
+
+        # 移动到占位符原本的位置（占位符被推到 idx+1）
+        self.notebook.insert(idx, real_frame)
+        self.notebook.forget(placeholder)
+        placeholder.destroy()
+
+        log(f"Lazy tab created: {key}")
+
+    def _do_lazy_swap_extensions(self) -> None:
+        """懒加载创建 Extensions 标签页"""
+        placeholder = getattr(self, "_extensions_placeholder", None)
+        if placeholder is None:
+            return
+        try:
+            idx = self.notebook.index(placeholder)
+        except Exception:
+            return
+
+        # 先标记已创建，防止 forget 触发的 <<NotebookTabChanged>> 事件重入
+        self._tab_created.add("extensions")
+
+        try:
+            self._extensions_tab = ExtensionsTab(self.notebook, self.current_config)
+            real_frame = self._extensions_tab.frame
+            self._tab_map["extensions"] = real_frame
+            self.notebook.insert(idx, real_frame)
+            self.notebook.forget(placeholder)
+            placeholder.destroy()
+            log("Lazy tab created: extensions")
+        except Exception as e:
+            log(f"Failed to create extensions tab: {e}")
+            self._extensions_tab = None
 
     def _create_general_tab(self):
         """创建常规设置选项卡"""
