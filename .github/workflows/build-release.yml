@@ -1,0 +1,262 @@
+name: Build release packages
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "ci/**"
+      - "codex/**"
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  PYTHON_VERSION: "3.12"
+  PANDOC_VERSION: "latest"
+
+jobs:
+  build-macos:
+    name: Build macOS DMG
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install --upgrade nuitka ordered-set zstandard
+
+      - name: Prepare bundled Pandoc
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$PANDOC_VERSION" == "latest" ]]; then
+            PANDOC_VERSION="$(python -c 'import json, urllib.request; print(json.load(urllib.request.urlopen("https://api.github.com/repos/jgm/pandoc/releases/latest"))["tag_name"].lstrip("v"))')"
+          fi
+          echo "Using Pandoc $PANDOC_VERSION"
+
+          arch="$(uname -m)"
+          case "$arch" in
+            arm64) pandoc_arch="arm64" ;;
+            x86_64) pandoc_arch="x86_64" ;;
+            *) echo "Unsupported macOS runner architecture: $arch" >&2; exit 1 ;;
+          esac
+
+          url="https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-${pandoc_arch}-macOS.zip"
+          work_dir="$RUNNER_TEMP/pandoc-macos"
+          rm -rf "$work_dir" third_party/pandoc/macos
+          mkdir -p "$work_dir" third_party/pandoc/macos
+
+          curl -fsSL "$url" -o "$work_dir/pandoc.zip"
+          unzip -q "$work_dir/pandoc.zip" -d "$work_dir"
+
+          pandoc_bin="$(find "$work_dir" -type f -path '*/bin/pandoc' -print -quit)"
+          if [[ -z "$pandoc_bin" ]]; then
+            echo "pandoc binary not found in downloaded archive" >&2
+            exit 1
+          fi
+
+          pandoc_root="$(dirname "$(dirname "$pandoc_bin")")"
+          ditto "$pandoc_root" third_party/pandoc/macos
+          third_party/pandoc/macos/bin/pandoc --version
+
+      - name: Import Developer ID certificate
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: |
+          test -n "$MACOS_CERTIFICATE_P12"
+          test -n "$MACOS_CERTIFICATE_PASSWORD"
+          KEYCHAIN_PASSWORD="${KEYCHAIN_PASSWORD:-temporary-keychain-password}"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -lut 21600 build.keychain
+
+          python -c "import base64, os, pathlib; pathlib.Path(os.environ['RUNNER_TEMP'], 'certificate.p12').write_bytes(base64.b64decode(os.environ['MACOS_CERTIFICATE_P12']))"
+          security import "$RUNNER_TEMP/certificate.p12" \
+            -k build.keychain \
+            -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+
+      - name: Store notarization credentials
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          NOTARY_PROFILE: ${{ secrets.NOTARY_PROFILE }}
+        run: |
+          test -n "$APPLE_ID"
+          test -n "$APPLE_TEAM_ID"
+          test -n "$APPLE_APP_SPECIFIC_PASSWORD"
+          NOTARY_PROFILE="${NOTARY_PROFILE:-PasteMDNotary}"
+          xcrun notarytool store-credentials "$NOTARY_PROFILE" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD"
+
+      - name: Build DMG
+        env:
+          CERT_IDENTITY_PASTEMD: ${{ secrets.CERT_IDENTITY_PASTEMD }}
+          NOTARY_PROFILE: ${{ secrets.NOTARY_PROFILE }}
+          PYTHON_BIN: python
+        run: |
+          test -n "$CERT_IDENTITY_PASTEMD"
+          export NOTARY_PROFILE="${NOTARY_PROFILE:-PasteMDNotary}"
+          ./build_dist_dmg.sh
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PasteMD-macOS
+          path: dist_dmg/*.dmg
+          if-no-files-found: error
+
+  build-windows:
+    name: Build Windows installer
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install Python dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install --upgrade nuitka ordered-set zstandard
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Prepare bundled Pandoc
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $pandocVersion = $env:PANDOC_VERSION
+          if ($pandocVersion -eq "latest") {
+            $latest = Invoke-RestMethod -Uri "https://api.github.com/repos/jgm/pandoc/releases/latest"
+            $pandocVersion = $latest.tag_name.TrimStart("v")
+          }
+          Write-Host "Using Pandoc $pandocVersion"
+
+          $url = "https://github.com/jgm/pandoc/releases/download/$pandocVersion/pandoc-$pandocVersion-windows-x86_64.zip"
+          $workDir = Join-Path $env:RUNNER_TEMP "pandoc-windows"
+          Remove-Item $workDir -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item "third_party\pandoc\win" -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force $workDir | Out-Null
+          New-Item -ItemType Directory -Force "third_party\pandoc\win" | Out-Null
+
+          $zipPath = Join-Path $workDir "pandoc.zip"
+          Invoke-WebRequest -Uri $url -OutFile $zipPath
+          Expand-Archive -Path $zipPath -DestinationPath $workDir -Force
+
+          $pandocExe = Get-ChildItem -Path $workDir -Filter "pandoc.exe" -Recurse | Select-Object -First 1
+          if (-not $pandocExe) {
+            throw "pandoc.exe not found in downloaded archive"
+          }
+
+          Copy-Item -Path (Join-Path $pandocExe.DirectoryName "*") -Destination "third_party\pandoc\win" -Recurse -Force
+          & "third_party\pandoc\win\pandoc.exe" --version
+
+      - name: Build Nuitka standalone app
+        shell: cmd
+        run: |
+          python -m nuitka main.py ^
+            --standalone ^
+            --output-dir=nuitka ^
+            --output-filename=PasteMD ^
+            --windows-console-mode=disable ^
+            --windows-icon-from-ico="%CD%\assets\icons\logo.ico" ^
+            --include-data-dir="%CD%\assets\icons=assets\icons" ^
+            --include-data-dir="%CD%\pastemd\i18n\locales=i18n\locales" ^
+            --include-data-dir="%CD%\pastemd\lua=lua" ^
+            --include-data-dir="%CD%\third_party\pandoc\win=pandoc" ^
+            --include-module=plyer.platforms.win.notification ^
+            --enable-plugin=tk-inter
+
+      - name: Ensure bundled Pandoc is in Nuitka dist
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $distPandoc = "nuitka\main.dist\pandoc"
+          Remove-Item $distPandoc -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force $distPandoc | Out-Null
+          Copy-Item -Path "third_party\pandoc\win\*" -Destination $distPandoc -Recurse -Force
+          if (-not (Test-Path "$distPandoc\pandoc.exe")) {
+            throw "pandoc.exe was not copied into $distPandoc"
+          }
+          & "$distPandoc\pandoc.exe" --version
+
+      - name: Build Inno Setup installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $version = python -c "from pastemd import __version__; print(__version__)"
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            throw "ISCC.exe not found: $iscc"
+          }
+          & $iscc "/DMyAppVersion=`"$version`"" "installer.iss"
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PasteMD-Windows
+          path: Output/*.exe
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub release
+    needs:
+      - build-macos
+      - build-windows
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(find artifacts -type f | sort)
+          if [[ "${#files[@]}" -eq 0 ]]; then
+            echo "No release assets found" >&2
+            exit 1
+          fi
+
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" "${files[@]}" --clobber
+          else
+            gh release create "$TAG_NAME" "${files[@]}" --title "$TAG_NAME" --generate-notes
+          fi
