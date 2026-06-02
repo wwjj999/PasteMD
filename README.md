@@ -34,7 +34,7 @@
 ## ❤️ 赞助商
 <table>
 <tr>
-<td width="200" align="center" valign="middle"><img src="docs/img/doloffer_logo.png" alt="pincc" width="180"></a></td>
+<td width="200" align="center" valign="middle"><img src="docs/img/Doloffer_logo.png" alt="pincc" width="180"></a></td>
 <td valign="middle"> 
   <a href="https://doloffer.com/friend/PduWP9xx">感谢 DolOffer 对本项目的支持！DolOffer 提供 ChatGPT Plus、Claude、YouTube Premium、Spotify、Apple Music 等热门数字订阅优惠，正版稳定，售后无忧。通过专属链接注册并使用优惠码 `AI8888`，可额外享受 9 折优惠。部分产品目前需在香港或韩国 IP 下查看和购买。</a></td>
 </tr>
