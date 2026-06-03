@@ -177,12 +177,21 @@ def sanitize_filename(filename: str, max_length: int = 100) -> str:
     # 移除多个连续的下划线
     cleaned = re.sub(r'_+', '_', cleaned)
     
-    # 移除前后的下划线
-    cleaned = cleaned.strip('_')
+    # 移除前后的下划线，以及 Windows 不允许的尾随点和空格
+    cleaned = cleaned.strip('_').rstrip(' .')
     
     # 限制长度
     if len(cleaned) > max_length:
-        cleaned = cleaned[:max_length].rstrip('_')
+        cleaned = cleaned[:max_length].rstrip('_').rstrip(' .')
+
+    reserved_names = {
+        "CON", "PRN", "AUX", "NUL",
+        *(f"COM{i}" for i in range(1, 10)),
+        *(f"LPT{i}" for i in range(1, 10)),
+    }
+    stem, ext = os.path.splitext(cleaned)
+    if stem.upper() in reserved_names:
+        cleaned = f"{stem}_{ext}"
     
     return cleaned or "document"
 
