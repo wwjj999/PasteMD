@@ -157,7 +157,7 @@ class PandocIntegration:
         md = md.replace('\r\n', '\n').replace('\r', '\n')  # 统一换行符
         md = re.sub(r'```\s*math\s*\n(.*?)\n\s*```', r'$$\n\1\n$$', md, flags=re.DOTALL)
         md = re.sub(r'\$\s*`([^`]+)`\s*\$', r'$\1$', md)
-        md = re.sub(r'(```\s*\w+)\s+[^\n]+', r'\1', md)
+        md = re.sub(r'(^```\s*\w+)[^\S\n]+[^\n]+$', r'\1', md, flags=re.MULTILINE)
         # 处理\~~删除线文本\~~
         md = re.sub(r'\\~~(.*?)\\~~', r'~~\1~~', md)
 

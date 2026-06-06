@@ -11,6 +11,26 @@ from ...utils.html_formatter import (
 from ...utils.logging import log
 
 
+OBSIDIAN_CLIPBOARD_MARKER = "<!-- obsidian -->"
+
+
+def _wrap_obsidian_math_latex(soup: BeautifulSoup, html: str) -> None:
+    """Restore LaTeX delimiters for Obsidian clipboard math nodes."""
+    if OBSIDIAN_CLIPBOARD_MARKER not in html:
+        return
+
+    for tag in soup.select("span.math.math-inline"):
+        text = tag.get_text()
+        if text and not text.strip().startswith("$"):
+            tag.string = f"${text}$"
+
+    for tag in soup.select("div.math.math-block"):
+        text = tag.get_text()
+        stripped = text.strip()
+        if stripped and not stripped.startswith("$$"):
+            tag.string = f"$${text}$$"
+
+
 class HtmlPreprocessor(BasePreprocessor):
     """HTML 内容预处理器（无状态）"""
 
@@ -35,6 +55,7 @@ class HtmlPreprocessor(BasePreprocessor):
 
         # 使用 html_formatter 进行清理
         soup = BeautifulSoup(html, "html.parser")
+        _wrap_obsidian_math_latex(soup, html)
         clean_html_content(soup, config)
 
         html_formatting = config.get("html_formatting") or config.get("Html_formatting") or {}
