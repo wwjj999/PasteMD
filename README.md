@@ -34,9 +34,15 @@
 ## ❤️ 赞助商
 <table>
 <tr>
-<td width="200" align="center" valign="middle"><img src="docs/img/Doloffer_logo.png" alt="pincc" width="180"></a></td>
+<td width="200" align="center" valign="middle"><a href="https://doloffer.com/friend/PduWP9xx"><img src="docs/img/Doloffer_logo.png" alt="DolOffer" width="180"></a></td>
 <td valign="middle"> 
   <a href="https://doloffer.com/friend/PduWP9xx">感谢 DolOffer 对本项目的支持！DolOffer 提供 ChatGPT Plus、Claude、YouTube Premium、Spotify、Apple Music 等热门数字订阅优惠，正版稳定，售后无忧。通过专属链接注册并使用优惠码 `AI8888`，可额外享受 9 折优惠。部分产品目前需在香港或韩国 IP 下查看和购买。</a></td>
+</tr>
+<tr>
+<td width="200" align="center" valign="middle"><a href="https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=pasteMD"><img src="docs/img/AtlasCloud_logo.svg" alt="Atlas Cloud" width="180"></a></td>
+<td valign="middle">
+  <a href="https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=pasteMD">Atlas Cloud</a> 是一个全模态 AI 推理平台，为开发者提供单一 AI API，用于访问视频生成、图像生成和 LLM API。无需管理多个供应商集成，接入一次即可统一访问覆盖所有模态的 300+ 精选模型。<br>
+  查看 Atlas Cloud 新的 Coding Plan 推广，获得更具预算友好性的 API 访问：<a href="https://www.atlascloud.ai/console/coding-plan">https://www.atlascloud.ai/console/coding-plan</a></td>
 </tr>
 </table>
 <!-- sponsor-ad:end -->
