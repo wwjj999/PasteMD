@@ -181,7 +181,7 @@ class DocxProcessor:
                     modified_count += 1
 
                 if modified_count == 0:
-                    log("No DOCX table found for auto layout")
+                    log("No eligible DOCX table found for auto layout")
                     return docx_bytes
 
                 updated_document_xml = ET.tostring(root, encoding="utf-8", xml_declaration=True)
