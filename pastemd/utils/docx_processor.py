@@ -2,6 +2,7 @@
 
 import io
 import zipfile
+from xml.sax.saxutils import quoteattr
 from xml.etree import ElementTree as ET
 
 from docx import Document
@@ -9,6 +10,7 @@ from ..utils.logging import log
 
 
 _WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+_MARKUP_COMPATIBILITY_NS = "http://schemas.openxmlformats.org/markup-compatibility/2006"
 _DOCX_TABLE_WIDTH_TWIPS = 9360
 _MIN_TABLE_COLUMN_TWIPS = 900
 _MAX_LABEL_COLUMN_TWIPS = 2200
@@ -97,6 +99,8 @@ class DocxProcessor:
 
             with zipfile.ZipFile(input_stream, "r") as zin:
                 document_xml = zin.read(document_path)
+                xml_namespaces = DocxProcessor._extract_xml_namespaces(document_xml)
+                DocxProcessor._register_xml_namespaces(xml_namespaces)
                 root = ET.fromstring(document_xml)
 
                 modified_count = 0
@@ -123,6 +127,11 @@ class DocxProcessor:
                     return docx_bytes
 
                 updated_document_xml = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+                updated_document_xml = DocxProcessor._preserve_ignorable_namespaces(
+                    updated_document_xml,
+                    root,
+                    xml_namespaces,
+                )
 
                 with zipfile.ZipFile(output_stream, "w") as zout:
                     for item in zin.infolist():
@@ -159,6 +168,8 @@ class DocxProcessor:
 
             with zipfile.ZipFile(input_stream, "r") as zin:
                 document_xml = zin.read(document_path)
+                xml_namespaces = DocxProcessor._extract_xml_namespaces(document_xml)
+                DocxProcessor._register_xml_namespaces(xml_namespaces)
                 root = ET.fromstring(document_xml)
 
                 modified_count = 0
@@ -174,6 +185,11 @@ class DocxProcessor:
                     return docx_bytes
 
                 updated_document_xml = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+                updated_document_xml = DocxProcessor._preserve_ignorable_namespaces(
+                    updated_document_xml,
+                    root,
+                    xml_namespaces,
+                )
 
                 with zipfile.ZipFile(output_stream, "w") as zout:
                     for item in zin.infolist():
@@ -187,6 +203,65 @@ class DocxProcessor:
         except Exception as e:
             log(f"Failed to auto-layout DOCX tables: {type(e).__name__}: {e}")
             return docx_bytes
+
+    @staticmethod
+    def _extract_xml_namespaces(xml_bytes: bytes) -> dict[str, str]:
+        namespaces: dict[str, str] = {}
+        try:
+            for _event, namespace in ET.iterparse(
+                io.BytesIO(xml_bytes),
+                events=("start-ns",),
+            ):
+                prefix, uri = namespace
+                if prefix and prefix not in namespaces:
+                    namespaces[prefix] = uri
+        except Exception as e:
+            log(f"Failed to extract DOCX XML namespaces: {type(e).__name__}: {e}")
+        return namespaces
+
+    @staticmethod
+    def _register_xml_namespaces(namespaces: dict[str, str]) -> None:
+        for prefix, uri in namespaces.items():
+            if prefix in ("xml", "xmlns"):
+                continue
+            try:
+                ET.register_namespace(prefix, uri)
+            except ValueError as e:
+                log(f"Failed to register DOCX XML namespace {prefix}: {e}")
+
+    @staticmethod
+    def _preserve_ignorable_namespaces(
+        xml_bytes: bytes,
+        root: ET.Element,
+        namespaces: dict[str, str],
+    ) -> bytes:
+        ignorable = root.get(f"{{{_MARKUP_COMPATIBILITY_NS}}}Ignorable")
+        if not ignorable:
+            return xml_bytes
+
+        xml_text = xml_bytes.decode("utf-8")
+        root_start = xml_text.find(":document")
+        if root_start < 0:
+            return xml_bytes
+        root_start = xml_text.rfind("<", 0, root_start)
+        if root_start < 0:
+            return xml_bytes
+        root_end = xml_text.find(">", root_start)
+        if root_end < 0:
+            return xml_bytes
+
+        root_tag = xml_text[root_start:root_end]
+        additions = []
+        for prefix in ignorable.split():
+            uri = namespaces.get(prefix)
+            if uri and f"xmlns:{prefix}=" not in root_tag:
+                additions.append(f" xmlns:{prefix}={quoteattr(uri)}")
+
+        if not additions:
+            return xml_bytes
+
+        xml_text = xml_text[:root_end] + "".join(additions) + xml_text[root_end:]
+        return xml_text.encode("utf-8")
 
     @staticmethod
     def _suggest_table_column_widths(table: ET.Element, namespaces: dict) -> list[int]:
